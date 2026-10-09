@@ -7,6 +7,7 @@ import {
 } from "discord.js";
 import { getDb, recordGuildJoin, recordGuildLeave } from "@maia/db";
 import { commandsByName } from "./commands/index.js";
+import { isUserFacingError } from "./lib/errors.js";
 
 const token = process.env.DISCORD_TOKEN;
 if (!token) {
@@ -16,7 +17,7 @@ if (!token) {
 const db = getDb();
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
 });
 
 client.once(Events.ClientReady, async (readyClient) => {
@@ -69,7 +70,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
     await command.execute(interaction);
   } catch (error) {
     console.error(error);
-    const payload = { content: "Something went wrong.", ephemeral: true };
+    const payload = {
+      content: isUserFacingError(error)
+        ? error.message
+        : "Something went wrong.",
+      ephemeral: true,
+    };
     if (interaction.replied || interaction.deferred) {
       await interaction.followUp(payload);
     } else {

@@ -5,6 +5,7 @@ import {
   guildIconUrl,
   type DiscordPartialGuild,
 } from "./discord";
+import { DEV_GUILD_ID } from "./dev-fixtures";
 
 export interface ServerListItem {
   id: string;
@@ -13,23 +14,25 @@ export interface ServerListItem {
   maiaPresent: boolean;
 }
 
-const DEV_PRESENT_GUILD_ID = "987654321098765432";
-
 export async function getManagedServersForUser(
   accessToken: string,
 ): Promise<ServerListItem[]> {
   const guilds = filterManageableGuilds(await fetchUserGuilds(accessToken));
 
-  let activeIds: Set<string>;
   const devSession =
     process.env.MAIA_ENABLE_DEV_HELPERS === "1" &&
     accessToken === "dev-access-token";
 
+  let activeIds: Set<string>;
   if (devSession) {
-    activeIds = new Set([DEV_PRESENT_GUILD_ID]);
+    activeIds = new Set([DEV_GUILD_ID]);
   } else {
-    const db = getDb();
-    activeIds = await getActiveGuildIds(db);
+    try {
+      const db = getDb();
+      activeIds = await getActiveGuildIds(db);
+    } catch {
+      activeIds = new Set();
+    }
   }
 
   return guilds

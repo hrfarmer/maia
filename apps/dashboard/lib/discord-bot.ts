@@ -1,0 +1,208 @@
+const DISCORD_API = "https://discord.com/api/v10";
+
+export class DiscordApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code?: number,
+  ) {
+    super(message);
+    this.name = "DiscordApiError";
+  }
+}
+
+function getBotToken(): string {
+  const token = process.env.DISCORD_TOKEN;
+  if (!token) {
+    throw new Error("DISCORD_TOKEN is not set");
+  }
+  return token;
+}
+
+let cachedBotUserId: string | null = null;
+
+export async function getBotUserId(): Promise<string> {
+  if (cachedBotUserId) {
+    return cachedBotUserId;
+  }
+  const data = await discordFetch<{ id: string }>("/users/@me");
+  cachedBotUserId = data.id;
+  return data.id;
+}
+
+export async function discordFetch<T>(
+  path: string,
+  init: RequestInit = {},
+): Promise<T> {
+  const response = await fetch(`${DISCORD_API}${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bot ${getBotToken()}`,
+      "Content-Type": "application/json",
+      ...init.headers,
+    },
+  });
+
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  const body = (await response.json().catch(() => ({}))) as {
+    message?: string;
+    code?: number;
+  };
+
+  if (!response.ok) {
+    throw new DiscordApiError(
+      body.message ?? `Discord API ${response.status}`,
+      response.status,
+      body.code,
+    );
+  }
+
+  return body as T;
+}
+
+export interface DiscordGuild {
+  id: string;
+  name: string;
+  owner_id: string;
+}
+
+export async function fetchGuild(guildId: string): Promise<DiscordGuild> {
+  return discordFetch<DiscordGuild>(`/guilds/${guildId}`);
+}
+
+export interface DiscordRole {
+  id: string;
+  name: string;
+  color: number;
+  position: number;
+  managed: boolean;
+  permissions: string;
+}
+
+export interface DiscordGuildMember {
+  user?: { id: string; username: string; global_name?: string | null };
+  nick?: string | null;
+  roles: string[];
+  communication_disabled_until?: string | null;
+}
+
+export async function fetchGuildRoles(guildId: string): Promise<DiscordRole[]> {
+  return discordFetch<DiscordRole[]>(`/guilds/${guildId}/roles`);
+}
+
+export async function fetchGuildMember(
+  guildId: string,
+  userId: string,
+): Promise<DiscordGuildMember> {
+  return discordFetch<DiscordGuildMember>(
+    `/guilds/${guildId}/members/${userId}`,
+  );
+}
+
+export async function searchGuildMembers(
+  guildId: string,
+  query: string,
+  limit = 25,
+): Promise<DiscordGuildMember[]> {
+  const params = new URLSearchParams({ query, limit: String(limit) });
+  return discordFetch<DiscordGuildMember[]>(
+    `/guilds/${guildId}/members/search?${params.toString()}`,
+  );
+}
+
+export async function addMemberRole(
+  guildId: string,
+  userId: string,
+  roleId: string,
+  reason?: string,
+) {
+  await discordFetch(
+    `/guilds/${guildId}/members/${userId}/roles/${roleId}`,
+    {
+      method: "PUT",
+      body: reason ? JSON.stringify({ reason }) : undefined,
+    },
+  );
+}
+
+export async function removeMemberRole(
+  guildId: string,
+  userId: string,
+  roleId: string,
+) {
+  await discordFetch(
+    `/guilds/${guildId}/members/${userId}/roles/${roleId}`,
+    { method: "DELETE" },
+  );
+}
+
+export async function setMemberRoles(
+  guildId: string,
+  userId: string,
+  roleIds: string[],
+) {
+  await discordFetch(`/guilds/${guildId}/members/${userId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ roles: roleIds }),
+  });
+}
+
+export async function kickMember(
+  guildId: string,
+  userId: string,
+  reason?: string,
+) {
+  const params = reason
+    ? `?${new URLSearchParams({ reason }).toString()}`
+    : "";
+  await discordFetch(`/guilds/${guildId}/members/${userId}${params}`, {
+    method: "DELETE",
+  });
+}
+
+export async function banMember(
+  guildId: string,
+  userId: string,
+  reason?: string,
+) {
+  await discordFetch(`/guilds/${guildId}/bans/${userId}`, {
+    method: "PUT",
+    body: JSON.stringify({ delete_message_days: 0, reason }),
+  });
+}
+
+export async function unbanMember(guildId: string, userId: string) {
+  await discordFetch(`/guilds/${guildId}/bans/${userId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function setMemberTimeout(
+  guildId: string,
+  userId: string,
+  untilIso: string | null,
+  reason?: string,
+) {
+  await discordFetch(`/guilds/${guildId}/members/${userId}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      communication_disabled_until: untilIso,
+      reason,
+    }),
+  });
+}
+
+export async function setMemberNickname(
+  guildId: string,
+  userId: string,
+  nick: string | null,
+  reason?: string,
+) {
+  await discordFetch(`/guilds/${guildId}/members/${userId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ nick, reason }),
+  });
+}
