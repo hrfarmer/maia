@@ -144,7 +144,7 @@ docker compose up --build
      - `http://localhost:3000/api/auth/callback/discord`
      - `https://maia.aychar.dev/api/auth/callback/discord`
    - Scopes for dashboard login: `identify`, `guilds` (Auth.js requests `identify guilds`).
-4. **OAuth2 URL Generator** (for your own testing): scopes `bot`, `applications.commands`; bot permissions integer **1502184300422** (view/send, manage roles, kick/ban, moderate members, manage nicknames). The dashboard **Add Maia** link uses the same permission set.
+4. **OAuth2 URL Generator** (for your own testing): scopes `bot`, `applications.commands`; bot permissions integer **1099914284038** (View Channel, Send Messages, Manage Roles, Kick Members, Ban Members, Moderate Members, Manage Nicknames — computed from `PermissionFlagsBits` in `@maia/discord`). The dashboard **Add Maia** link uses the same value.
 5. Copy **Application ID** → `DISCORD_CLIENT_ID` and `NEXT_PUBLIC_DISCORD_CLIENT_ID`.
 6. Copy **Client Secret** → `DISCORD_CLIENT_SECRET`.
 7. After deploy, run `pnpm bot:deploy-commands` once so slash commands (`/hello`, `/role`, `/member`) are registered globally (or set `DISCORD_DEV_GUILD_ID` for a test server).
