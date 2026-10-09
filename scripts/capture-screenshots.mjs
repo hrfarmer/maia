@@ -60,14 +60,14 @@ async function main() {
 
     await context.request.post("http://127.0.0.1:3000/api/dev/session");
     await page.goto("http://127.0.0.1:3000/servers");
-    await page.waitForSelector(".server-list");
+    await page.waitForSelector('[data-testid="server-list"]');
     await page.screenshot({
       path: path.join(artifactDir, "screenshot_server_list.png"),
       fullPage: true,
     });
 
     await page.goto("http://127.0.0.1:3000/servers/987654321098765432");
-    await page.waitForSelector(".command-list");
+    await page.waitForSelector('[data-testid="command-list"]');
     await page.screenshot({
       path: path.join(artifactDir, "screenshot_server_detail.png"),
       fullPage: true,

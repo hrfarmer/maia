@@ -13,12 +13,24 @@ export interface ServerListItem {
   maiaPresent: boolean;
 }
 
+const DEV_PRESENT_GUILD_ID = "987654321098765432";
+
 export async function getManagedServersForUser(
   accessToken: string,
 ): Promise<ServerListItem[]> {
   const guilds = filterManageableGuilds(await fetchUserGuilds(accessToken));
-  const db = getDb();
-  const activeIds = await getActiveGuildIds(db);
+
+  let activeIds: Set<string>;
+  const devSession =
+    process.env.MAIA_ENABLE_DEV_HELPERS === "1" &&
+    accessToken === "dev-access-token";
+
+  if (devSession) {
+    activeIds = new Set([DEV_PRESENT_GUILD_ID]);
+  } else {
+    const db = getDb();
+    activeIds = await getActiveGuildIds(db);
+  }
 
   return guilds
     .map((guild) => toListItem(guild, activeIds.has(guild.id)))
