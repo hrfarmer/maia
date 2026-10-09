@@ -1,4 +1,5 @@
 import { signIn } from "@/auth";
+import { Button } from "@/components/ui/button";
 
 export function DiscordLoginButton() {
   return (
@@ -8,9 +9,9 @@ export function DiscordLoginButton() {
         await signIn("discord", { redirectTo: "/servers" });
       }}
     >
-      <button type="submit" className="btn btn-primary">
+      <Button type="submit" size="lg">
         Continue with Discord
-      </button>
+      </Button>
     </form>
   );
 }

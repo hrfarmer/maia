@@ -3,6 +3,17 @@ import { notFound } from "next/navigation";
 import { DEFAULT_COMMANDS, getDb, getGuildWithCommands } from "@maia/db";
 import { auth } from "@/auth";
 import { AppShell } from "@/components/AppShell";
+import { GuildAvatar } from "@/components/GuildAvatar";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   botInviteUrl,
   fetchUserGuilds,
@@ -13,6 +24,8 @@ import {
 interface PageProps {
   params: Promise<{ guildId: string }>;
 }
+
+const DEV_PRESENT_GUILD_ID = "987654321098765432";
 
 export default async function ServerDetailPage({ params }: PageProps) {
   const { guildId } = await params;
@@ -29,54 +42,82 @@ export default async function ServerDetailPage({ params }: PageProps) {
     notFound();
   }
 
-  const db = getDb();
-  const record = await getGuildWithCommands(db, guildId);
-  const maiaPresent = !!record && !record.leftAt;
+  const devSession =
+    process.env.MAIA_ENABLE_DEV_HELPERS === "1" &&
+    session.accessToken === "dev-access-token";
 
-  const commands =
-    record?.guildCommands?.filter((row) => row.enabled).map((row) => row.commandName) ??
-    [...DEFAULT_COMMANDS];
+  let maiaPresent = false;
+  let commands: string[] = [...DEFAULT_COMMANDS];
+
+  if (devSession && guildId === DEV_PRESENT_GUILD_ID) {
+    maiaPresent = true;
+  } else {
+    try {
+      const db = getDb();
+      const record = await getGuildWithCommands(db, guildId);
+      maiaPresent = !!record && !record.leftAt;
+      commands =
+        record?.guildCommands
+          ?.filter((row) => row.enabled)
+          .map((row) => row.commandName) ?? [...DEFAULT_COMMANDS];
+    } catch {
+      if (!devSession) {
+        throw new Error("Database unavailable");
+      }
+    }
+  }
 
   const icon = guildIconUrl(guild, 80);
 
   return (
     <AppShell>
-      <Link href="/servers" className="back-link">
-        ← Servers
-      </Link>
-      <div className="server-header">
-        {icon ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={icon} alt="" className="guild-icon" width={56} height={56} />
-        ) : (
-          <div className="guild-icon guild-icon-fallback" aria-hidden>
-            {guild.name.slice(0, 1)}
-          </div>
-        )}
-        <h1>{guild.name}</h1>
+      <Button variant="ghost" size="sm" className="-ml-2 mb-6 w-fit" asChild>
+        <Link href="/servers">← Servers</Link>
+      </Button>
+
+      <div className="mb-8 flex items-center gap-4">
+        <GuildAvatar
+          name={guild.name}
+          iconUrl={icon}
+          className="size-14 rounded-sm"
+        />
+        <h1 className="text-2xl font-semibold tracking-tight">{guild.name}</h1>
       </div>
 
-      <div className="panel" style={{ marginBottom: "1.25rem" }}>
-        <h3>Commands</h3>
-        <ul className="command-list">
-          {commands.map((name) => (
-            <li key={name} className="command-item">
-              <span className="command-name">/{name}</span>
-              <span className="command-state">On</span>
-            </li>
-          ))}
-        </ul>
-      </div>
+      <Card>
+        <CardHeader className="border-b">
+          <CardTitle className="text-base">Commands</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table data-testid="command-list">
+            <TableHeader>
+              <TableRow>
+                <TableHead className="pl-6">Command</TableHead>
+                <TableHead className="pr-6 text-right">Enabled</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {commands.map((name) => (
+                <TableRow key={name}>
+                  <TableCell className="pl-6 font-mono text-sm">/{name}</TableCell>
+                  <TableCell className="pr-6 text-right text-muted-foreground">
+                    Yes
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
       {!maiaPresent ? (
-        <a
-          href={botInviteUrl(guildId)}
-          className="btn btn-primary"
-          target="_blank"
-          rel="noreferrer"
-        >
-          Add Maia
-        </a>
+        <div className="mt-6">
+          <Button asChild>
+            <a href={botInviteUrl(guildId)} target="_blank" rel="noreferrer">
+              Add Maia
+            </a>
+          </Button>
+        </div>
       ) : null}
     </AppShell>
   );
