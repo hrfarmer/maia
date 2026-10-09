@@ -1,0 +1,21 @@
+{
+  "name": "maia",
+  "private": true,
+  "scripts": {
+    "build": "pnpm --filter @maia/db build && pnpm --filter @maia/bot build && pnpm --filter @maia/dashboard build",
+    "typecheck": "pnpm -r run typecheck",
+    "db:generate": "pnpm --filter @maia/db generate",
+    "db:migrate": "pnpm --filter @maia/db migrate",
+    "bot:dev": "pnpm --filter @maia/bot dev",
+    "bot:deploy-commands": "pnpm --filter @maia/bot deploy-commands",
+    "dashboard:dev": "pnpm --filter @maia/dashboard dev",
+    "screenshots": "node scripts/capture-screenshots.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "devDependencies": {
+    "playwright": "^1.64.0"
+  }
+}
