@@ -8,6 +8,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     Discord({
       clientId: process.env.DISCORD_CLIENT_ID!,
       clientSecret: process.env.DISCORD_CLIENT_SECRET!,
+      // Discord RFC 9207: callback includes iss=https://discord.com (see discord.com/.well-known/oauth-authorization-server)
+      issuer: "https://discord.com",
       authorization: {
         params: {
           scope: "identify guilds",
