@@ -79,7 +79,7 @@ export default async function ServerDetailPage({ params }: PageProps) {
         <GuildAvatar
           name={guild.name}
           iconUrl={icon}
-          className="size-14 rounded-lg"
+          className="size-14 rounded-sm"
         />
         <h1 className="text-2xl font-semibold tracking-tight">{guild.name}</h1>
       </div>

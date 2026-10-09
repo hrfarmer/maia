@@ -9,9 +9,9 @@ interface GuildAvatarProps {
 
 export function GuildAvatar({ name, iconUrl, className }: GuildAvatarProps) {
   return (
-    <Avatar className={cn("size-11 rounded-md", className)}>
-      {iconUrl ? <AvatarImage src={iconUrl} alt="" className="rounded-md" /> : null}
-      <AvatarFallback className="rounded-md font-medium">
+    <Avatar className={cn("size-11 rounded-sm", className)}>
+      {iconUrl ? <AvatarImage src={iconUrl} alt="" className="rounded-sm" /> : null}
+      <AvatarFallback className="rounded-sm font-medium">
         {name.slice(0, 1).toUpperCase()}
       </AvatarFallback>
     </Avatar>
