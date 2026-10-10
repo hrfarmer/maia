@@ -7,3 +7,4 @@ dist
 .turbo
 *.tsbuildinfo
 drizzle/meta
+*.tsbuildinfo

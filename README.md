@@ -116,7 +116,7 @@ Create **three** resources (or one Compose stack):
 
 **Environment variables** (dashboard + bot + shared):
 
-See [`.env.example`](.env.example). Production dashboard should use:
+See [`.env.example`](.env.example). The **dashboard** needs `DISCORD_TOKEN` (server-side only) for Discord REST moderation and the external API. Production dashboard should use:
 
 - `AUTH_URL=https://maia.aychar.dev`
 - `NEXT_PUBLIC_BASE_URL=https://maia.aychar.dev`
@@ -138,16 +138,97 @@ docker compose up --build
 ## Discord Developer Portal
 
 1. Create an application at [Discord Developer Portal](https://discord.com/developers/applications).
-2. **Bot** tab: create a bot, copy the token → `DISCORD_TOKEN`. Enable **Server Members Intent** only if you add member features later; for v1 you only need the default **Guilds** intent (no privileged intents required).
+2. **Bot** tab: create a bot, copy the token → `DISCORD_TOKEN`. Enable privileged intents **Server Members Intent** (member search, role views, moderation via REST) and keep **Guilds** enabled.
 3. **OAuth2** tab:
    - Redirect URIs:
      - `http://localhost:3000/api/auth/callback/discord`
      - `https://maia.aychar.dev/api/auth/callback/discord`
    - Scopes for dashboard login: `identify`, `guilds` (Auth.js requests `identify guilds`).
-4. **OAuth2 URL Generator** (for your own testing): scopes `bot`, `applications.commands`; bot permissions at minimum **Send Messages** (slash replies).
+4. **OAuth2 URL Generator** (for your own testing): scopes `bot`, `applications.commands`; bot permissions integer **1099914284038** (View Channel, Send Messages, Manage Roles, Kick Members, Ban Members, Moderate Members, Manage Nicknames — computed from `PermissionFlagsBits` in `@maia/discord`). The dashboard **Add Maia** link uses the same value.
 5. Copy **Application ID** → `DISCORD_CLIENT_ID` and `NEXT_PUBLIC_DISCORD_CLIENT_ID`.
 6. Copy **Client Secret** → `DISCORD_CLIENT_SECRET`.
-7. After deploy, run `pnpm bot:deploy-commands` once so `/hello` is registered globally (or set `DISCORD_DEV_GUILD_ID` for a test server).
+7. After deploy, run `pnpm bot:deploy-commands` once so slash commands (`/hello`, `/role`, `/member`) are registered globally (or set `DISCORD_DEV_GUILD_ID` for a test server).
+
+## External HTTP API
+
+Authenticated REST endpoints live on the **dashboard** origin (same host as the UI). They call Discord with the bot token server-side and write audit log entries like dashboard actions.
+
+### Authentication
+
+Create a per-server API key on the server detail page (**API keys** tab). Each key is scoped to exactly one guild. The raw token is shown **once** on creation (`maia_…`).
+
+Send it on every request:
+
+```http
+Authorization: Bearer maia_xxxxxxxx
+```
+
+Invalid, revoked, or wrong-guild keys return `401` / `403` JSON `{ "error": "…" }`. Basic rate limiting applies (`429` with `Retry-After`).
+
+Optional env: `MAIA_API_KEY_PEPPER` (defaults to `AUTH_SECRET`) for hashing stored keys.
+
+### Base URL
+
+Production: `https://maia.aychar.dev/api/v1/guilds/{guildId}`
+
+Local: `http://localhost:3000/api/v1/guilds/{guildId}`
+
+### Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/roles` | List guild roles |
+| `GET` | `/members/{userId}/roles` | List a member's role IDs |
+| `PUT` | `/members/{userId}/roles` | Set member roles (`{ "roleIds": ["…"] }`) |
+| `PUT` | `/members/{userId}/roles/{roleId}` | Add role (idempotent if already present) |
+| `DELETE` | `/members/{userId}/roles/{roleId}` | Remove role (idempotent if absent) |
+| `POST` | `/members/{userId}/kick` | Kick (`{ "reason": "optional" }`) |
+| `POST` | `/members/{userId}/ban` | Ban (`{ "reason": "optional" }`) |
+| `DELETE` | `/bans/{userId}` | Unban (idempotent if not banned) |
+| `POST` | `/members/{userId}/timeout` | Timeout (`{ "minutes": 10, "reason": "optional" }`) |
+| `DELETE` | `/members/{userId}/timeout` | Remove timeout |
+| `PATCH` | `/members/{userId}/nickname` | `{ "nickname": "new" }` or `{ "nickname": null }` to clear |
+
+### Examples
+
+List roles:
+
+```bash
+curl -sS -H "Authorization: Bearer $MAIA_API_KEY" \
+  "https://maia.aychar.dev/api/v1/guilds/$GUILD_ID/roles"
+```
+
+Add a role:
+
+```bash
+curl -sS -X PUT -H "Authorization: Bearer $MAIA_API_KEY" \
+  "https://maia.aychar.dev/api/v1/guilds/$GUILD_ID/members/$USER_ID/roles/$ROLE_ID"
+```
+
+Set all roles:
+
+```bash
+curl -sS -X PUT -H "Authorization: Bearer $MAIA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"roleIds":["111","222"]}' \
+  "https://maia.aychar.dev/api/v1/guilds/$GUILD_ID/members/$USER_ID/roles"
+```
+
+Timeout for 30 minutes:
+
+```bash
+curl -sS -X POST -H "Authorization: Bearer $MAIA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"minutes":30,"reason":"spam"}' \
+  "https://maia.aychar.dev/api/v1/guilds/$GUILD_ID/members/$USER_ID/timeout"
+```
+
+### Slash commands
+
+- `/role add|remove|create|delete|edit` — manage roles (invoker needs **Manage Roles**; Maia respects role hierarchy).
+- `/member kick|ban|unban|timeout|untimeout|nickname` — member actions with matching Discord permissions.
+
+All commands, dashboard actions, and API calls are recorded in the per-server **Audit log** tab.
 
 ### Optional local helpers
 
@@ -161,6 +242,7 @@ Run `pnpm screenshots` (requires Playwright) to regenerate marketing screenshots
 apps/bot          Discord bot
 apps/dashboard    Next.js dashboard
 packages/db       Shared schema and migrations
+packages/discord  Permission helpers and invite bitfield
 ```
 
 ## License

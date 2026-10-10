@@ -4,6 +4,7 @@ import { DEFAULT_COMMANDS, getDb, getGuildWithCommands } from "@maia/db";
 import { auth } from "@/auth";
 import { AppShell } from "@/components/AppShell";
 import { GuildAvatar } from "@/components/GuildAvatar";
+import { ServerManagePanel } from "@/components/ServerManagePanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -20,12 +21,11 @@ import {
   filterManageableGuilds,
   guildIconUrl,
 } from "@/lib/discord";
+import { DEV_GUILD_ID } from "@/lib/dev-fixtures";
 
 interface PageProps {
   params: Promise<{ guildId: string }>;
 }
-
-const DEV_PRESENT_GUILD_ID = "987654321098765432";
 
 export default async function ServerDetailPage({ params }: PageProps) {
   const { guildId } = await params;
@@ -49,7 +49,7 @@ export default async function ServerDetailPage({ params }: PageProps) {
   let maiaPresent = false;
   let commands: string[] = [...DEFAULT_COMMANDS];
 
-  if (devSession && guildId === DEV_PRESENT_GUILD_ID) {
+  if (devSession && guildId === DEV_GUILD_ID) {
     maiaPresent = true;
   } else {
     try {
@@ -118,7 +118,11 @@ export default async function ServerDetailPage({ params }: PageProps) {
             </a>
           </Button>
         </div>
-      ) : null}
+      ) : (
+        <div className="mt-6">
+          <ServerManagePanel guildId={guildId} />
+        </div>
+      )}
     </AppShell>
   );
 }

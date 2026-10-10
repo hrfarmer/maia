@@ -27,6 +27,7 @@ services:
       AUTH_URL: ${AUTH_URL:-http://localhost:3000}
       NEXT_PUBLIC_DISCORD_CLIENT_ID: ${NEXT_PUBLIC_DISCORD_CLIENT_ID}
       NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL:-http://localhost:3000}
+      DISCORD_TOKEN: ${DISCORD_TOKEN}
     depends_on:
       postgres:
         condition: service_healthy

@@ -1,4 +1,6 @@
-export const MANAGE_GUILD = 1n << 5n;
+import { BOT_INVITE_PERMISSIONS_STRING, Permission } from "@maia/discord";
+
+export const MANAGE_GUILD = Permission.ManageGuild;
 
 export interface DiscordPartialGuild {
   id: string;
@@ -69,7 +71,7 @@ export function botInviteUrl(guildId: string) {
   if (!clientId) {
     throw new Error("NEXT_PUBLIC_DISCORD_CLIENT_ID is not set");
   }
-  const permissions = "2048";
+  const permissions = BOT_INVITE_PERMISSIONS_STRING;
   const params = new URLSearchParams({
     client_id: clientId,
     permissions,
