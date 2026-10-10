@@ -10,10 +10,25 @@ export interface DiscordPartialGuild {
   permissions: string;
 }
 
-/** Dev-only sentinel; resolved to a local image in guildIconUrl. */
+/** Dev-only icon keys; resolved to local images in guildIconUrl. */
 export const DEV_GUILD_ICON_SENTINEL = "dev_local_northwatch";
 
+const devGuildIconPaths: Record<string, string> = {
+  dev_local_northwatch: "/dev-guild-icons/northwatch.svg",
+  dev_local_adapt: "/dev-guild-icons/adapt.svg",
+  dev_local_harbor: "/dev-guild-icons/harbor.svg",
+  dev_local_atlas: "/dev-guild-icons/atlas.svg",
+  dev_local_orbit: "/dev-guild-icons/orbit.svg",
+};
+
 const devGuildFixtures: DiscordPartialGuild[] = [
+  {
+    id: "111111111111111110",
+    name: "ADAPT",
+    icon: "dev_local_adapt",
+    owner: false,
+    permissions: "32",
+  },
   {
     id: "123456789012345678",
     name: "Northwatch",
@@ -23,7 +38,7 @@ const devGuildFixtures: DiscordPartialGuild[] = [
   },
   {
     id: "987654321098765432",
-    name: "Relay Station",
+    name: "test-server",
     icon: null,
     owner: false,
     permissions: "32",
@@ -31,13 +46,27 @@ const devGuildFixtures: DiscordPartialGuild[] = [
   {
     id: "555555555555555555",
     name: "Atlas Ops",
-    icon: null,
+    icon: "dev_local_atlas",
     owner: false,
     permissions: "32",
   },
   {
     id: "666666666666666666",
     name: "Harbor Nine",
+    icon: "dev_local_harbor",
+    owner: false,
+    permissions: "32",
+  },
+  {
+    id: "777777777777777777",
+    name: "Society for Space Exploration",
+    icon: "dev_local_orbit",
+    owner: false,
+    permissions: "32",
+  },
+  {
+    id: "888888888888888888",
+    name: "Waypoint Labs",
     icon: null,
     owner: false,
     permissions: "32",
@@ -79,11 +108,11 @@ export function guildIconUrl(guild: DiscordPartialGuild, size = 64) {
   if (!guild.icon) {
     return null;
   }
-  if (
-    process.env.MAIA_ENABLE_DEV_HELPERS === "1" &&
-    guild.icon === DEV_GUILD_ICON_SENTINEL
-  ) {
-    return `/dev-guild-icons/northwatch.svg`;
+  if (process.env.MAIA_ENABLE_DEV_HELPERS === "1" && guild.icon) {
+    const localPath = devGuildIconPaths[guild.icon];
+    if (localPath) {
+      return localPath;
+    }
   }
   const extension = guild.icon.startsWith("a_") ? "gif" : "png";
   return `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.${extension}?size=${size}`;

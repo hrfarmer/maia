@@ -47,7 +47,7 @@ export function AppSidebar({
           "border-b border-sidebar-border",
           iconRail
             ? "flex flex-col items-center gap-2 py-2"
-            : "flex flex-row items-center gap-1",
+            : "flex flex-row items-center gap-2",
         )}
       >
         <SidebarMenu className={cn(iconRail ? "w-full" : "min-w-0 flex-1")}>
@@ -98,7 +98,12 @@ export function AppSidebar({
                         asChild
                         isActive={isActive}
                         tooltip={server.name}
-                        className={cn(iconRail && "justify-center")}
+                        size="lg"
+                        className={cn(
+                          iconRail && "justify-center",
+                          !iconRail &&
+                            "gap-3 [&>span:last-child]:overflow-visible [&>span:last-child]:whitespace-normal",
+                        )}
                       >
                         <Link href={href}>
                           <GuildAvatar
@@ -108,8 +113,8 @@ export function AppSidebar({
                             className="size-8 shrink-0"
                           />
                           {!iconRail ? (
-                            <span className="min-w-0 flex-1">
-                              <span className="block truncate">{server.name}</span>
+                            <span className="flex min-w-0 flex-1 flex-col gap-0.5 leading-tight">
+                              <span className="truncate">{server.name}</span>
                               <span className="flex items-center gap-1 text-xs font-normal text-muted-foreground">
                                 <Circle
                                   className={cn(
