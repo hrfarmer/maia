@@ -15,7 +15,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --import tsx --test src/permissions.test.ts"
+    "test": "node --import tsx --test src/permissions.test.ts src/slash-command-name.test.ts"
   },
   "devDependencies": {
     "discord.js": "^14.18.0",

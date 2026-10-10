@@ -86,6 +86,13 @@ async function main() {
       fullPage: true,
     });
 
+    await page.getByRole("tab", { name: "Custom commands" }).click();
+    await page.waitForSelector('[data-testid="custom-commands-table"]');
+    await page.screenshot({
+      path: path.join(artifactDir, "screenshot_custom_commands.png"),
+      fullPage: true,
+    });
+
     await page.getByRole("tab", { name: "Members" }).click();
     await page.getByPlaceholder("Username or nickname").fill("alex");
     await page.getByRole("button", { name: "Search" }).click();
