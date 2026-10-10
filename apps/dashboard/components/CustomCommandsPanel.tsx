@@ -25,6 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Pencil, Power, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const RESPONSE_MAX = 2000;
@@ -356,7 +357,7 @@ export function CustomCommandsPanel({ guildId }: CustomCommandsPanelProps) {
           </CardHeader>
           <CardContent className="min-w-0 overflow-x-auto p-0">
             <Table
-              className="min-w-[40rem]"
+              className="w-full min-w-0 sm:min-w-[40rem]"
               data-testid="custom-commands-table"
             >
               <TableHeader>
@@ -382,7 +383,7 @@ export function CustomCommandsPanel({ guildId }: CustomCommandsPanelProps) {
                     <TableRow key={command.id}>
                       <TableCell className="pl-4">
                         <div className="font-mono text-sm">/{command.name}</div>
-                        <div className="text-xs text-muted-foreground">
+                        <div className="hidden text-xs text-muted-foreground sm:block">
                           {command.description}
                         </div>
                       </TableCell>
@@ -404,25 +405,39 @@ export function CustomCommandsPanel({ guildId }: CustomCommandsPanelProps) {
                             type="button"
                             variant="outline"
                             size="sm"
+                            className="size-8 px-0 sm:size-auto sm:px-3"
                             disabled={busy}
+                            aria-label={`Edit /${command.name}`}
                             onClick={() => startEdit(command)}
                           >
-                            Edit
+                            <Pencil className="sm:hidden" />
+                            <span className="hidden sm:inline">Edit</span>
                           </Button>
                           <Button
                             type="button"
                             variant="outline"
                             size="sm"
+                            className="size-8 px-0 sm:size-auto sm:px-3"
                             disabled={busy}
+                            aria-label={
+                              command.enabled
+                                ? `Disable /${command.name}`
+                                : `Enable /${command.name}`
+                            }
                             onClick={() => void toggleEnabled(command)}
                           >
-                            {command.enabled ? "Disable" : "Enable"}
+                            <Power className="sm:hidden" />
+                            <span className="hidden sm:inline">
+                              {command.enabled ? "Disable" : "Enable"}
+                            </span>
                           </Button>
                           <Button
                             type="button"
                             variant="outline"
                             size="sm"
+                            className="size-8 px-0 sm:size-auto sm:px-3"
                             disabled={busy}
+                            aria-label={`Delete /${command.name}`}
                             onClick={() =>
                               openConfirm(
                                 `Delete /${command.name}? This removes it from Discord for this server.`,
@@ -430,7 +445,8 @@ export function CustomCommandsPanel({ guildId }: CustomCommandsPanelProps) {
                               )
                             }
                           >
-                            Delete
+                            <Trash2 className="sm:hidden" />
+                            <span className="hidden sm:inline">Delete</span>
                           </Button>
                         </div>
                       </TableCell>
