@@ -45,53 +45,43 @@ async function main() {
     await waitForServer("http://127.0.0.1:3010/api/health");
 
     const browser = await chromium.launch();
-    const context = await browser.newContext({
+
+    const desktopContext = await browser.newContext({
       viewport: { width: 1280, height: 800 },
     });
-    const page = await context.newPage();
-
-    await page.goto("http://127.0.0.1:3010/");
-    await page.screenshot({
-      path: path.join(artifactDir, "screenshot_login.png"),
+    const desktopPage = await desktopContext.newPage();
+    await desktopContext.request.post("http://127.0.0.1:3010/api/dev/session");
+    await desktopPage.goto("http://127.0.0.1:3010/servers");
+    await desktopPage.waitForSelector('[data-testid="server-list"]');
+    await desktopPage.screenshot({
+      path: path.join(artifactDir, "screenshot_desktop_sidebar_expanded.png"),
       fullPage: true,
     });
 
-    await context.request.post("http://127.0.0.1:3010/api/dev/session");
-    await page.goto("http://127.0.0.1:3010/servers");
-    await page.waitForSelector('[data-testid="server-list"]');
-    await page.screenshot({
-      path: path.join(artifactDir, "screenshot_server_list.png"),
+    await desktopPage.goto("http://127.0.0.1:3010/servers/987654321098765432");
+    await desktopPage.waitForSelector('[data-testid="manage-tabs"]');
+    await desktopPage.screenshot({
+      path: path.join(artifactDir, "screenshot_desktop_server_tabs.png"),
       fullPage: true,
     });
 
-    await page.goto("http://127.0.0.1:3010/servers/987654321098765432");
-    await page.waitForSelector('[data-testid="command-list"]');
-    await page.screenshot({
-      path: path.join(artifactDir, "screenshot_server_detail.png"),
+    const mobileContext = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      isMobile: true,
+    });
+    const mobilePage = await mobileContext.newPage();
+    await mobileContext.request.post("http://127.0.0.1:3010/api/dev/session");
+    await mobilePage.goto("http://127.0.0.1:3010/servers/987654321098765432");
+    await mobilePage.waitForSelector('[data-testid="manage-tabs"]');
+    await mobilePage.screenshot({
+      path: path.join(artifactDir, "screenshot_mobile_sidebar_closed.png"),
       fullPage: true,
     });
 
-    await page.waitForSelector('[data-testid="manage-tabs"]');
-    await page.getByRole("tab", { name: "Roles" }).click();
-    await page.waitForSelector('[data-testid="role-create-form"]');
-    await page.screenshot({
-      path: path.join(artifactDir, "screenshot_server_roles.png"),
-      fullPage: true,
-    });
-
-    await page.getByRole("tab", { name: "Audit log" }).click();
-    await page.waitForSelector('[data-testid="audit-table"]');
-    await page.screenshot({
-      path: path.join(artifactDir, "screenshot_server_audit.png"),
-      fullPage: true,
-    });
-
-    await page.getByRole("tab", { name: "Members" }).click();
-    await page.getByPlaceholder("Username or nickname").fill("alex");
-    await page.getByRole("button", { name: "Search" }).click();
-    await page.waitForSelector('[data-testid="member-search-results"]');
-    await page.screenshot({
-      path: path.join(artifactDir, "screenshot_server_members.png"),
+    await mobilePage.getByRole("button", { name: "Toggle Sidebar" }).click();
+    await mobilePage.waitForSelector('[data-testid="server-list"]');
+    await mobilePage.screenshot({
+      path: path.join(artifactDir, "screenshot_mobile_sidebar_open.png"),
       fullPage: true,
     });
 
