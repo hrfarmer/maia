@@ -47,6 +47,7 @@ async function main() {
     const browser = await chromium.launch();
     const desktopContext = await browser.newContext({
       viewport: { width: 1280, height: 800 },
+      colorScheme: "dark",
     });
     const desktopPage = await desktopContext.newPage();
     await desktopContext.request.post("http://127.0.0.1:3010/api/dev/session");
@@ -75,6 +76,7 @@ async function main() {
     const mobileContext = await browser.newContext({
       viewport: { width: 390, height: 844 },
       isMobile: true,
+      colorScheme: "dark",
     });
     const mobilePage = await mobileContext.newPage();
     await mobileContext.request.post("http://127.0.0.1:3010/api/dev/session");
