@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { X } from "lucide-react";
 import {
   AlertDialog,
@@ -658,6 +659,11 @@ export function ServerManagePanel({ guildId }: ServerManagePanelProps) {
               <CardTitle className="text-base">API keys</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 pt-4">
+              <p className="text-sm text-muted-foreground">
+                <Link href="/docs" className="underline underline-offset-4">
+                  API documentation
+                </Link>
+              </p>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Input
                   placeholder="Key name"

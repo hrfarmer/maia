@@ -1,7 +1,10 @@
 const buckets = new Map<string, { count: number; resetAt: number }>();
 
-const WINDOW_MS = 60_000;
-const MAX_REQUESTS = 120;
+export const RATE_LIMIT_WINDOW_MS = 60_000;
+export const RATE_LIMIT_MAX_REQUESTS = 120;
+
+const WINDOW_MS = RATE_LIMIT_WINDOW_MS;
+const MAX_REQUESTS = RATE_LIMIT_MAX_REQUESTS;
 
 export function checkRateLimit(key: string): { ok: true } | { ok: false; retryAfterSec: number } {
   const now = Date.now();
