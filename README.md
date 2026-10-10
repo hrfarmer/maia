@@ -178,6 +178,7 @@ Local: `http://localhost:3000/api/v1/guilds/{guildId}`
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/roles` | List guild roles |
+| `POST` | `/roles` | Create role (`{ "name": "…", "color": "#5865F2", "hoist": false, "mentionable": false }`) |
 | `GET` | `/members/{userId}/roles` | List a member's role IDs |
 | `PUT` | `/members/{userId}/roles` | Set member roles (`{ "roleIds": ["…"] }`) |
 | `PUT` | `/members/{userId}/roles/{roleId}` | Add role (idempotent if already present) |
@@ -195,6 +196,15 @@ List roles:
 
 ```bash
 curl -sS -H "Authorization: Bearer $MAIA_API_KEY" \
+  "https://maia.aychar.dev/api/v1/guilds/$GUILD_ID/roles"
+```
+
+Create a role:
+
+```bash
+curl -sS -X POST -H "Authorization: Bearer $MAIA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Helper","color":"#5865F2","hoist":false,"mentionable":true}' \
   "https://maia.aychar.dev/api/v1/guilds/$GUILD_ID/roles"
 ```
 

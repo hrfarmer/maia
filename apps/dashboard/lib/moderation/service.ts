@@ -11,6 +11,7 @@ import {
   banMember,
   fetchGuild,
   fetchGuildMember,
+  createGuildRole,
   fetchGuildRoles,
   getBotUserId,
   kickMember,
@@ -26,6 +27,11 @@ import {
   getBotHighestRole,
   ModerationError,
 } from "./hierarchy";
+import {
+  assertBotCanManageRoles,
+  sanitizeRolePermissions,
+  type ParsedRoleCreate,
+} from "./role-create";
 
 export interface ModerationActor {
   source: AuditSource;
@@ -76,6 +82,77 @@ function mapDiscordError(error: unknown): never {
     throw new ModerationError(error.message);
   }
   throw error;
+}
+
+function roleCreateReason(actor: ModerationActor): string | undefined {
+  if (!actor.label) {
+    return undefined;
+  }
+  if (actor.source === "api") {
+    return `Maia API key "${actor.label}"`;
+  }
+  if (actor.source === "dashboard") {
+    return `Maia dashboard by ${actor.label}`;
+  }
+  return actor.label;
+}
+
+export async function moderationCreateRole(
+  guildId: string,
+  input: ParsedRoleCreate,
+  actor: ModerationActor,
+) {
+  try {
+    const ctx = await loadGuildContext(guildId);
+    const botPerms = assertBotCanManageRoles(
+      ctx.botMember,
+      ctx.roles,
+      guildId,
+    );
+    const permissions = sanitizeRolePermissions(input.permissions, botPerms);
+    const created = await createGuildRole(guildId, {
+      name: input.name,
+      color: input.color,
+      hoist: input.hoist,
+      mentionable: input.mentionable,
+      permissions,
+      reason: roleCreateReason(actor),
+    });
+    await audit(actor, guildId, {
+      action: "role.create",
+      targetType: "role",
+      targetId: created.id,
+      detail: {
+        name: created.name,
+        color: created.color,
+        hoist: created.hoist ?? input.hoist,
+        mentionable: created.mentionable ?? input.mentionable,
+      },
+      success: true,
+    });
+    return {
+      ok: true as const,
+      role: {
+        id: created.id,
+        name: created.name,
+        color: created.color,
+        managed: created.managed,
+        position: created.position,
+        hoist: created.hoist ?? input.hoist,
+        mentionable: created.mentionable ?? input.mentionable,
+      },
+    };
+  } catch (error) {
+    await audit(actor, guildId, {
+      action: "role.create",
+      targetType: "role",
+      targetId: guildId,
+      detail: { name: input.name },
+      success: false,
+      errorMessage: error instanceof Error ? error.message : "Failed",
+    }).catch(() => undefined);
+    mapDiscordError(error);
+  }
 }
 
 export async function listRolesForGuild(guildId: string) {

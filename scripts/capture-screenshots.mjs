@@ -72,6 +72,13 @@ async function main() {
     });
 
     await page.waitForSelector('[data-testid="manage-tabs"]');
+    await page.getByRole("tab", { name: "Roles" }).click();
+    await page.waitForSelector('[data-testid="role-create-form"]');
+    await page.screenshot({
+      path: path.join(artifactDir, "screenshot_server_roles.png"),
+      fullPage: true,
+    });
+
     await page.getByRole("tab", { name: "Audit log" }).click();
     await page.waitForSelector('[data-testid="audit-table"]');
     await page.screenshot({

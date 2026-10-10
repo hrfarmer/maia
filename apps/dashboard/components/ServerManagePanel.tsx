@@ -106,6 +106,10 @@ export function ServerManagePanel({ guildId }: ServerManagePanelProps) {
     null,
   );
   const [addRoleValue, setAddRoleValue] = useState<string>("");
+  const [newRoleName, setNewRoleName] = useState("");
+  const [newRoleColor, setNewRoleColor] = useState("");
+  const [newRoleHoist, setNewRoleHoist] = useState(false);
+  const [newRoleMentionable, setNewRoleMentionable] = useState(false);
 
   const roleById = useMemo(() => {
     const map = new Map<string, RoleRow>();
@@ -238,6 +242,45 @@ export function ServerManagePanel({ guildId }: ServerManagePanelProps) {
       }
       await loadAudit();
       setStatus("Done.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function createRole() {
+    const name = newRoleName.trim();
+    if (!name) {
+      return;
+    }
+    setBusy(true);
+    setStatus(null);
+    try {
+      const payload: Record<string, unknown> = {
+        name,
+        hoist: newRoleHoist,
+        mentionable: newRoleMentionable,
+      };
+      const color = newRoleColor.trim();
+      if (color) {
+        payload.color = color;
+      }
+      const res = await fetch(`/api/servers/${guildId}/roles`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = (await res.json()) as { error?: string };
+        setStatus(err.error ?? "Request failed");
+        return;
+      }
+      setNewRoleName("");
+      setNewRoleColor("");
+      setNewRoleHoist(false);
+      setNewRoleMentionable(false);
+      await loadRoles();
+      await loadAudit();
+      setStatus("Role created.");
     } finally {
       setBusy(false);
     }
@@ -480,6 +523,60 @@ export function ServerManagePanel({ guildId }: ServerManagePanelProps) {
             <CardHeader className="border-b py-4">
               <CardTitle className="text-base">Roles</CardTitle>
             </CardHeader>
+            <CardContent
+              className="space-y-4 border-b p-4"
+              data-testid="role-create-form"
+            >
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="space-y-2 sm:col-span-2 lg:col-span-1">
+                  <Label htmlFor="new-role-name">Name</Label>
+                  <Input
+                    id="new-role-name"
+                    placeholder="Role name"
+                    value={newRoleName}
+                    onChange={(event) => setNewRoleName(event.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="new-role-color">Color</Label>
+                  <Input
+                    id="new-role-color"
+                    placeholder="#5865F2"
+                    value={newRoleColor}
+                    onChange={(event) => setNewRoleColor(event.target.value)}
+                  />
+                </div>
+                <div className="flex flex-col justify-end gap-3 sm:flex-row sm:items-center lg:col-span-2">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      className="size-4 rounded-sm border"
+                      checked={newRoleHoist}
+                      onChange={(event) => setNewRoleHoist(event.target.checked)}
+                    />
+                    Hoist
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      className="size-4 rounded-sm border"
+                      checked={newRoleMentionable}
+                      onChange={(event) =>
+                        setNewRoleMentionable(event.target.checked)
+                      }
+                    />
+                    Mentionable
+                  </label>
+                  <Button
+                    type="button"
+                    disabled={busy || !newRoleName.trim()}
+                    onClick={() => void createRole()}
+                  >
+                    Create role
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
             <CardContent className="p-0">
               <Table>
                 <TableHeader>

@@ -80,6 +80,17 @@ export interface DiscordRole {
   position: number;
   managed: boolean;
   permissions: string;
+  hoist?: boolean;
+  mentionable?: boolean;
+}
+
+export interface CreateGuildRoleInput {
+  name: string;
+  color?: number;
+  hoist?: boolean;
+  mentionable?: boolean;
+  permissions?: string;
+  reason?: string;
 }
 
 export interface DiscordGuildMember {
@@ -91,6 +102,30 @@ export interface DiscordGuildMember {
 
 export async function fetchGuildRoles(guildId: string): Promise<DiscordRole[]> {
   return discordFetch<DiscordRole[]>(`/guilds/${guildId}/roles`);
+}
+
+export async function createGuildRole(
+  guildId: string,
+  input: CreateGuildRoleInput,
+): Promise<DiscordRole> {
+  const payload: Record<string, unknown> = {
+    name: input.name,
+    permissions: input.permissions ?? "0",
+    hoist: input.hoist ?? false,
+    mentionable: input.mentionable ?? false,
+  };
+  if (input.color !== undefined) {
+    payload.color = input.color;
+  }
+  const headers: Record<string, string> = {};
+  if (input.reason) {
+    headers["X-Audit-Log-Reason"] = input.reason.slice(0, 512);
+  }
+  return discordFetch<DiscordRole>(`/guilds/${guildId}/roles`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function fetchGuildMember(
