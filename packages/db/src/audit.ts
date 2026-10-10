@@ -3,6 +3,7 @@ import type { Db } from "./client.js";
 import {
   type AuditAction,
   type AuditSource,
+  type AuditTargetType,
   auditLogs,
 } from "./schema.js";
 
@@ -12,7 +13,7 @@ export interface AuditEntryInput {
   actorId: string;
   actorLabel?: string;
   action: AuditAction;
-  targetType: "member" | "role" | "ban";
+  targetType: AuditTargetType;
   targetId: string;
   detail?: Record<string, unknown>;
   success: boolean;

@@ -15,6 +15,13 @@
       "when": 1760100000000,
       "tag": "0001_role_member_api",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1760200000000,
+      "tag": "0002_custom_commands",
+      "breakpoints": true
     }
   ]
 }

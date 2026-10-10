@@ -32,6 +32,29 @@ export const devMembers = [
   },
 ];
 
+export const devCustomCommands = [
+  {
+    id: "custom-cmd-1",
+    guildId: DEV_GUILD_ID,
+    name: "rules",
+    description: "Show server rules",
+    responseText: "Be kind. No spam.",
+    enabled: true,
+    createdAt: new Date("2026-10-09T10:00:00Z"),
+    updatedAt: new Date("2026-10-09T10:00:00Z"),
+  },
+  {
+    id: "custom-cmd-2",
+    guildId: DEV_GUILD_ID,
+    name: "faq",
+    description: "Frequently asked questions",
+    responseText: "FAQ: ask a mod in #help.",
+    enabled: false,
+    createdAt: new Date("2026-10-08T10:00:00Z"),
+    updatedAt: new Date("2026-10-08T10:00:00Z"),
+  },
+];
+
 export const devAudit = [
   {
     id: "audit-1",

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { X } from "lucide-react";
 import {
   AlertDialog,
@@ -33,6 +34,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CustomCommandsPanel } from "@/components/CustomCommandsPanel";
 
 interface RoleRow {
   id: string;
@@ -336,22 +338,40 @@ export function ServerManagePanel({ guildId }: ServerManagePanelProps) {
       ) : null}
 
       <Tabs defaultValue="members" data-testid="manage-tabs" className="min-w-0">
-        <div className="mb-4 overflow-x-auto">
+        <div className="-mx-4 mb-4 overflow-x-auto px-4 pb-1 md:mx-0 md:px-0">
           <TabsList
             variant="line"
-            className="h-auto w-max min-w-full justify-start gap-0 p-0"
+            className="h-auto w-max max-w-none justify-start gap-0 p-0"
           >
-            <TabsTrigger value="members" className="min-h-10 px-3">
+            <TabsTrigger
+              value="members"
+              className="min-h-10 flex-none shrink-0 whitespace-nowrap px-3"
+            >
               Members
             </TabsTrigger>
-            <TabsTrigger value="roles" className="min-h-10 px-3">
+            <TabsTrigger
+              value="roles"
+              className="min-h-10 flex-none shrink-0 whitespace-nowrap px-3"
+            >
               Roles
             </TabsTrigger>
-            <TabsTrigger value="audit" className="min-h-10 px-3">
+            <TabsTrigger
+              value="audit"
+              className="min-h-10 flex-none shrink-0 whitespace-nowrap px-3"
+            >
               Audit log
             </TabsTrigger>
-            <TabsTrigger value="api-keys" className="min-h-10 px-3">
+            <TabsTrigger
+              value="api-keys"
+              className="min-h-10 flex-none shrink-0 whitespace-nowrap px-3"
+            >
               API keys
+            </TabsTrigger>
+            <TabsTrigger
+              value="custom-commands"
+              className="min-h-10 flex-none shrink-0 whitespace-nowrap px-3"
+            >
+              Custom commands
             </TabsTrigger>
           </TabsList>
         </div>
@@ -665,12 +685,21 @@ export function ServerManagePanel({ guildId }: ServerManagePanelProps) {
           </Card>
         </TabsContent>
 
+        <TabsContent value="custom-commands">
+          <CustomCommandsPanel guildId={guildId} />
+        </TabsContent>
+
         <TabsContent value="api-keys">
           <Card className="shadow-none">
             <CardHeader className="border-b">
               <CardTitle className="text-base">API keys</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 pt-4">
+              <p className="text-sm text-muted-foreground">
+                <Link href="/docs" className="underline underline-offset-4">
+                  API documentation
+                </Link>
+              </p>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Input
                   placeholder="Key name"

@@ -5,7 +5,12 @@ import {
   GatewayIntentBits,
   InteractionType,
 } from "discord.js";
-import { getDb, recordGuildJoin, recordGuildLeave } from "@maia/db";
+import {
+  getDb,
+  getEnabledCustomCommandByName,
+  recordGuildJoin,
+  recordGuildLeave,
+} from "@maia/db";
 import { commandsByName } from "./commands/index.js";
 import { isUserFacingError } from "./lib/errors.js";
 
@@ -57,23 +62,55 @@ client.on(Events.InteractionCreate, async (interaction) => {
     return;
   }
 
-  const command = commandsByName.get(interaction.commandName);
-  if (!command) {
+  const builtIn = commandsByName.get(interaction.commandName);
+  if (builtIn) {
+    try {
+      await builtIn.execute(interaction);
+    } catch (error) {
+      console.error(error);
+      const payload = {
+        content: isUserFacingError(error)
+          ? error.message
+          : "Something went wrong.",
+        ephemeral: true,
+      };
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp(payload);
+      } else {
+        await interaction.reply(payload);
+      }
+    }
+    return;
+  }
+
+  const guildId = interaction.guildId;
+  if (!guildId) {
     await interaction.reply({
-      content: "Unknown command.",
+      content: "This command can only be used in a server.",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  const custom = await getEnabledCustomCommandByName(
+    db,
+    guildId,
+    interaction.commandName,
+  );
+  if (!custom) {
+    await interaction.reply({
+      content: "This command is not available.",
       ephemeral: true,
     });
     return;
   }
 
   try {
-    await command.execute(interaction);
+    await interaction.reply({ content: custom.responseText });
   } catch (error) {
     console.error(error);
     const payload = {
-      content: isUserFacingError(error)
-        ? error.message
-        : "Something went wrong.",
+      content: "Something went wrong.",
       ephemeral: true,
     };
     if (interaction.replied || interaction.deferred) {

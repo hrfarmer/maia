@@ -65,21 +65,52 @@ async function main() {
       fullPage: true,
     });
 
+    await desktopPage.getByRole("tab", { name: "Custom commands" }).click();
+    await desktopPage.waitForSelector('[data-testid="custom-commands-table"]');
+    await desktopPage.screenshot({
+      path: path.join(artifactDir, "screenshot_custom_commands.png"),
+      fullPage: true,
+    });
+
     const mobileContext = await browser.newContext({
       viewport: { width: 390, height: 844 },
       isMobile: true,
     });
     const mobilePage = await mobileContext.newPage();
+    mobilePage.on("console", (msg) => {
+      if (msg.type() === "error") {
+        console.error("MOBILE CONSOLE ERROR:", msg.text());
+      }
+    });
+    mobilePage.on("pageerror", (err) => {
+      console.error("MOBILE PAGE ERROR:", err.message);
+    });
+
     await mobileContext.request.post("http://127.0.0.1:3010/api/dev/session");
-    await mobilePage.goto("http://127.0.0.1:3010/servers/987654321098765432");
+    await mobilePage.goto("http://127.0.0.1:3010/servers/987654321098765432", {
+      waitUntil: "networkidle",
+    });
     await mobilePage.waitForSelector('[data-testid="manage-tabs"]');
+    await mobilePage.waitForTimeout(2500);
     await mobilePage.screenshot({
       path: path.join(artifactDir, "screenshot_mobile_sidebar_closed.png"),
       fullPage: true,
     });
 
+    await mobilePage.waitForFunction(
+      () => !document.querySelector('[data-next-badge-root]'),
+      null,
+      { timeout: 15_000 },
+    ).catch(() => undefined);
+
     await mobilePage.getByRole("button", { name: "Toggle Sidebar" }).click();
+    const sheet = mobilePage.locator('[role="dialog"][data-mobile="true"]');
+    await sheet.waitFor({ state: "visible" });
     await mobilePage.waitForSelector('[data-testid="server-list"]');
+    const box = await sheet.boundingBox();
+    if (!box || box.width < 100) {
+      throw new Error(`Mobile sidebar sheet too narrow: ${JSON.stringify(box)}`);
+    }
     await mobilePage.screenshot({
       path: path.join(artifactDir, "screenshot_mobile_sidebar_open.png"),
       fullPage: true,
