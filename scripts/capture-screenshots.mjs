@@ -96,11 +96,11 @@ async function main() {
       .locator('[data-testid="manage-tabs"] > div')
       .first()
       .evaluate((el) => {
-        el.scrollLeft = el.scrollWidth;
+        el.scrollLeft = 0;
       });
     await mobilePage.screenshot({
       path: path.join(artifactDir, "screenshot_mobile_sidebar_closed.png"),
-      fullPage: true,
+      fullPage: false,
     });
 
     await mobilePage.waitForFunction(
@@ -109,17 +109,31 @@ async function main() {
       { timeout: 15_000 },
     ).catch(() => undefined);
 
-    await mobilePage.getByRole("button", { name: "Toggle Sidebar" }).click();
+    await mobilePage
+      .locator("header")
+      .getByRole("button", { name: "Toggle Sidebar" })
+      .click();
     const sheet = mobilePage.locator('[role="dialog"][data-mobile="true"]');
     await sheet.waitFor({ state: "visible" });
     await mobilePage.waitForSelector('[data-testid="server-list"]');
+    await mobilePage.waitForFunction(() => {
+      const el = document.querySelector('[role="dialog"][data-mobile="true"]');
+      if (!el) return false;
+      const rect = el.getBoundingClientRect();
+      const transform = getComputedStyle(el).transform;
+      return (
+        rect.width >= 100 &&
+        rect.x >= -2 &&
+        (transform === "none" || transform === "matrix(1, 0, 0, 1, 0, 0)")
+      );
+    });
     const box = await sheet.boundingBox();
-    if (!box || box.width < 100) {
-      throw new Error(`Mobile sidebar sheet too narrow: ${JSON.stringify(box)}`);
+    if (!box || box.width < 100 || box.x < -2) {
+      throw new Error(`Mobile sidebar sheet not open: ${JSON.stringify(box)}`);
     }
     await mobilePage.screenshot({
       path: path.join(artifactDir, "screenshot_mobile_sidebar_open.png"),
-      fullPage: true,
+      fullPage: false,
     });
 
     await browser.close();

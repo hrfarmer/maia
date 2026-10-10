@@ -186,7 +186,8 @@ function Sidebar({
         <SheetContent
           data-sidebar="sidebar"
           data-mobile="true"
-          className="z-[100] w-[min(18rem,85vw)] max-w-[85vw] border-r bg-sidebar p-0 text-sidebar-foreground shadow-none sm:max-w-[18rem]"
+          className="w-[85vw] max-w-[18rem] border-r bg-sidebar p-0 text-sidebar-foreground shadow-none"
+          style={{ width: "min(18rem, 85vw)" }}
           side={side}
           showCloseButton
         >
