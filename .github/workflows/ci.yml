@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Placeholders for Next.js / Auth.js builds (no real secrets in CI)
+  DATABASE_URL: postgresql://maia:maia@localhost:5432/maia
+  DISCORD_CLIENT_ID: "123456789012345678"
+  DISCORD_CLIENT_SECRET: ci-discord-client-secret-placeholder
+  DISCORD_TOKEN: ci-discord-token-placeholder
+  AUTH_SECRET: ci-auth-secret-placeholder-min-32-chars-long
+  AUTH_URL: http://localhost:3000
+  NEXT_PUBLIC_DISCORD_CLIENT_ID: "123456789012345678"
+  NEXT_PUBLIC_BASE_URL: http://localhost:3000
+
+jobs:
+  checks:
+    name: checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+  docker:
+    name: docker (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: bot
+            dockerfile: apps/bot/Dockerfile
+            scope: maia-bot
+          - name: dashboard
+            dockerfile: apps/dashboard/Dockerfile
+            scope: maia-dashboard
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: false
+          cache-from: type=gha,scope=${{ matrix.scope }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.scope }}
+          build-args: |
+            NEXT_PUBLIC_DISCORD_CLIENT_ID=123456789012345678
+            NEXT_PUBLIC_BASE_URL=http://localhost:3000
