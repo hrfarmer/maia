@@ -9,6 +9,7 @@ export interface CustomCommandRecord {
   description: string;
   responseText: string;
   enabled: boolean;
+  ephemeral: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -23,6 +24,7 @@ export interface CreateCustomCommandInput {
   description: string;
   responseText: string;
   enabled?: boolean;
+  ephemeral?: boolean;
 }
 
 export interface UpdateCustomCommandInput {
@@ -30,6 +32,7 @@ export interface UpdateCustomCommandInput {
   description?: string;
   responseText?: string;
   enabled?: boolean;
+  ephemeral?: boolean;
 }
 
 export async function listGuildCustomCommands(
@@ -85,6 +88,7 @@ export async function createGuildCustomCommand(
       description: input.description,
       responseText: input.responseText,
       enabled: input.enabled ?? true,
+      ephemeral: input.ephemeral ?? false,
       createdAt: now,
       updatedAt: now,
     })
@@ -115,6 +119,9 @@ export async function updateGuildCustomCommand(
   }
   if (input.enabled !== undefined) {
     patch.enabled = input.enabled;
+  }
+  if (input.ephemeral !== undefined) {
+    patch.ephemeral = input.ephemeral;
   }
 
   const [row] = await db

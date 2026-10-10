@@ -35,6 +35,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     description?: string;
     responseText?: string;
     enabled?: boolean;
+    ephemeral?: boolean;
   };
 
   try {

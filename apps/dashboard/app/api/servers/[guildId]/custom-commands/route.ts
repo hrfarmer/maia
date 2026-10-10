@@ -70,6 +70,7 @@ export async function POST(request: Request, context: RouteContext) {
     name?: string;
     description?: string;
     responseText?: string;
+    ephemeral?: boolean;
   };
 
   try {
@@ -80,6 +81,7 @@ export async function POST(request: Request, context: RouteContext) {
         name: body.name ?? "",
         description: body.description ?? "",
         responseText: body.responseText ?? "",
+        ephemeral: body.ephemeral,
       },
     );
     return NextResponse.json({

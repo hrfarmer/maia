@@ -13,13 +13,12 @@ import {
   type CustomCommandRecord,
 } from "@maia/db";
 import { syncGuildCustomCommandsToDiscord } from "./sync";
+import {
+  CustomCommandValidationError,
+  parseCustomCommandEphemeral,
+} from "./validation";
 
-export class CustomCommandValidationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "CustomCommandValidationError";
-  }
-}
+export { CustomCommandValidationError } from "./validation";
 
 export class CustomCommandNotFoundError extends Error {
   constructor() {
@@ -101,12 +100,18 @@ async function auditCommand(
 export async function createCustomCommandForGuild(
   guildId: string,
   actor: Actor,
-  input: { name: string; description: string; responseText: string },
+  input: {
+    name: string;
+    description: string;
+    responseText: string;
+    ephemeral?: boolean;
+  },
 ): Promise<{ command: CustomCommandRecord; sync: Awaited<ReturnType<typeof syncGuildCustomCommandsToDiscord>> }> {
   const fields = validateFields(input);
   if (!fields.name || !fields.description || !fields.responseText) {
     throw new CustomCommandValidationError("Invalid command fields");
   }
+  const ephemeral = parseCustomCommandEphemeral(input.ephemeral);
 
   const db = getDb();
   let command: CustomCommandRecord;
@@ -115,6 +120,7 @@ export async function createCustomCommandForGuild(
       name: fields.name,
       description: fields.description,
       responseText: fields.responseText,
+      ephemeral,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -148,6 +154,7 @@ export async function updateCustomCommandForGuild(
     description?: string;
     responseText?: string;
     enabled?: boolean;
+    ephemeral?: boolean;
   },
 ): Promise<{ command: CustomCommandRecord; sync: Awaited<ReturnType<typeof syncGuildCustomCommandsToDiscord>> }> {
   const db = getDb();
@@ -157,11 +164,13 @@ export async function updateCustomCommandForGuild(
   }
 
   const fields = validateFields(input);
+  const ephemeral = parseCustomCommandEphemeral(input.ephemeral);
   let command: CustomCommandRecord | null;
   try {
     command = await updateGuildCustomCommand(db, guildId, commandId, {
       ...fields,
       enabled: input.enabled,
+      ephemeral,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -187,6 +196,7 @@ export async function updateCustomCommandForGuild(
     {
       name: command.name,
       enabled: command.enabled,
+      ephemeral: command.ephemeral,
       fields: Object.keys(input),
     },
     sync.ok,

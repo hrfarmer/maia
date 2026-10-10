@@ -7,7 +7,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "next start",
     "dev": "next dev --port 3000",
-    "test": "node --import tsx --test lib/api/auth-utils.test.ts lib/api/openapi/routes.test.ts lib/moderation/role-create.test.ts"
+    "test": "node --import tsx --test lib/api/auth-utils.test.ts lib/api/openapi/routes.test.ts lib/moderation/role-create.test.ts lib/custom-commands/validation.test.ts"
   },
   "dependencies": {
     "@maia/db": "workspace:*",

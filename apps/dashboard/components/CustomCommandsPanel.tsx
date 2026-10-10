@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -24,6 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Pencil, Power, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const RESPONSE_MAX = 2000;
@@ -34,6 +36,7 @@ interface CustomCommandRow {
   description: string;
   responseText: string;
   enabled: boolean;
+  ephemeral: boolean;
 }
 
 interface SyncState {
@@ -57,6 +60,7 @@ export function CustomCommandsPanel({ guildId }: CustomCommandsPanelProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [responseText, setResponseText] = useState("");
+  const [ephemeral, setEphemeral] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmLabel, setConfirmLabel] = useState("");
   const [confirmRun, setConfirmRun] = useState<(() => Promise<void>) | null>(
@@ -85,6 +89,7 @@ export function CustomCommandsPanel({ guildId }: CustomCommandsPanelProps) {
     setName("");
     setDescription("");
     setResponseText("");
+    setEphemeral(false);
   }
 
   function startEdit(command: CustomCommandRow) {
@@ -92,6 +97,7 @@ export function CustomCommandsPanel({ guildId }: CustomCommandsPanelProps) {
     setName(command.name);
     setDescription(command.description);
     setResponseText(command.responseText);
+    setEphemeral(command.ephemeral);
     setStatus(null);
   }
 
@@ -131,6 +137,7 @@ export function CustomCommandsPanel({ guildId }: CustomCommandsPanelProps) {
         name: name.trim(),
         description: description.trim(),
         responseText,
+        ephemeral,
       };
       const url = editingId
         ? `/api/servers/${guildId}/custom-commands/${editingId}`
@@ -265,8 +272,11 @@ export function CustomCommandsPanel({ guildId }: CustomCommandsPanelProps) {
         </p>
       ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="gap-0 py-0 shadow-none" data-testid="custom-commands-form">
+      <div className="flex min-w-0 flex-col gap-4">
+        <Card
+          className="min-w-0 gap-0 py-0 shadow-none"
+          data-testid="custom-commands-form"
+        >
           <CardHeader className="border-b py-4">
             <CardTitle className="text-base">
               {editingId ? "Edit command" : "New command"}
@@ -292,6 +302,15 @@ export function CustomCommandsPanel({ guildId }: CustomCommandsPanelProps) {
                 placeholder="What this command does"
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-3 rounded-sm border px-3 py-2">
+              <Label htmlFor="custom-cmd-ephemeral">Only you</Label>
+              <Switch
+                id="custom-cmd-ephemeral"
+                checked={ephemeral}
+                onCheckedChange={setEphemeral}
+                disabled={busy}
               />
             </div>
             <div className="space-y-2">
@@ -332,15 +351,19 @@ export function CustomCommandsPanel({ guildId }: CustomCommandsPanelProps) {
           </CardContent>
         </Card>
 
-        <Card className="gap-0 py-0 shadow-none">
+        <Card className="min-w-0 gap-0 py-0 shadow-none">
           <CardHeader className="border-b py-4">
             <CardTitle className="text-base">Custom commands</CardTitle>
           </CardHeader>
-          <CardContent className="p-0">
-            <Table data-testid="custom-commands-table">
+          <CardContent className="min-w-0 overflow-x-auto p-0">
+            <Table
+              className="w-full min-w-0 sm:min-w-[40rem]"
+              data-testid="custom-commands-table"
+            >
               <TableHeader>
                 <TableRow>
                   <TableHead className="pl-4">Command</TableHead>
+                  <TableHead>Visibility</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="pr-4 text-right">Actions</TableHead>
                 </TableRow>
@@ -349,7 +372,7 @@ export function CustomCommandsPanel({ guildId }: CustomCommandsPanelProps) {
                 {commands.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={3}
+                      colSpan={4}
                       className="py-8 text-center text-sm text-muted-foreground"
                     >
                       No custom commands yet.
@@ -360,9 +383,14 @@ export function CustomCommandsPanel({ guildId }: CustomCommandsPanelProps) {
                     <TableRow key={command.id}>
                       <TableCell className="pl-4">
                         <div className="font-mono text-sm">/{command.name}</div>
-                        <div className="text-xs text-muted-foreground">
+                        <div className="hidden text-xs text-muted-foreground sm:block">
                           {command.description}
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">
+                          {command.ephemeral ? "Only you" : "Public"}
+                        </Badge>
                       </TableCell>
                       <TableCell>
                         <Badge
@@ -371,39 +399,56 @@ export function CustomCommandsPanel({ guildId }: CustomCommandsPanelProps) {
                           {command.enabled ? "Enabled" : "Disabled"}
                         </Badge>
                       </TableCell>
-                      <TableCell className="space-x-2 pr-4 text-right">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={busy}
-                          onClick={() => startEdit(command)}
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={busy}
-                          onClick={() => void toggleEnabled(command)}
-                        >
-                          {command.enabled ? "Disable" : "Enable"}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={busy}
-                          onClick={() =>
-                            openConfirm(
-                              `Delete /${command.name}? This removes it from Discord for this server.`,
-                              async () => deleteCommand(command.id),
-                            )
-                          }
-                        >
-                          Delete
-                        </Button>
+                      <TableCell className="whitespace-normal pr-4 text-right">
+                        <div className="flex flex-wrap justify-end gap-1">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="size-8 px-0 sm:size-auto sm:px-3"
+                            disabled={busy}
+                            aria-label={`Edit /${command.name}`}
+                            onClick={() => startEdit(command)}
+                          >
+                            <Pencil className="sm:hidden" />
+                            <span className="hidden sm:inline">Edit</span>
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="size-8 px-0 sm:size-auto sm:px-3"
+                            disabled={busy}
+                            aria-label={
+                              command.enabled
+                                ? `Disable /${command.name}`
+                                : `Enable /${command.name}`
+                            }
+                            onClick={() => void toggleEnabled(command)}
+                          >
+                            <Power className="sm:hidden" />
+                            <span className="hidden sm:inline">
+                              {command.enabled ? "Disable" : "Enable"}
+                            </span>
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="size-8 px-0 sm:size-auto sm:px-3"
+                            disabled={busy}
+                            aria-label={`Delete /${command.name}`}
+                            onClick={() =>
+                              openConfirm(
+                                `Delete /${command.name}? This removes it from Discord for this server.`,
+                                async () => deleteCommand(command.id),
+                              )
+                            }
+                          >
+                            <Trash2 className="sm:hidden" />
+                            <span className="hidden sm:inline">Delete</span>
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
