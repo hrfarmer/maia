@@ -271,7 +271,7 @@ export function CustomCommandsPanel({ guildId }: CustomCommandsPanelProps) {
         </p>
       ) : null}
 
-      <div className="grid min-w-0 gap-4 lg:grid-cols-2">
+      <div className="flex min-w-0 flex-col gap-4">
         <Card
           className="min-w-0 gap-0 py-0 shadow-none"
           data-testid="custom-commands-form"
@@ -354,9 +354,9 @@ export function CustomCommandsPanel({ guildId }: CustomCommandsPanelProps) {
           <CardHeader className="border-b py-4">
             <CardTitle className="text-base">Custom commands</CardTitle>
           </CardHeader>
-          <CardContent className="min-w-0 p-0">
+          <CardContent className="min-w-0 overflow-x-auto p-0">
             <Table
-              className="min-w-[36rem]"
+              className="min-w-[40rem]"
               data-testid="custom-commands-table"
             >
               <TableHeader>

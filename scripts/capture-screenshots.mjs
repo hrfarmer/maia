@@ -121,7 +121,12 @@ async function main() {
       waitUntil: "networkidle",
     });
     await mobilePage.waitForSelector('[data-testid="manage-tabs"]');
-    await mobilePage.waitForTimeout(1500);
+    await captureCustomCommandsTab(
+      mobilePage,
+      path.join(artifactDir, "screenshot_custom_commands_mobile.png"),
+    );
+
+    await mobilePage.waitForTimeout(500);
     await mobilePage
       .locator("header")
       .getByRole("button", { name: "Toggle Sidebar" })
@@ -144,13 +149,6 @@ async function main() {
       path: path.join(artifactDir, "screenshot_mobile_sidebar_open.png"),
       fullPage: false,
     });
-
-    await mobilePage.keyboard.press("Escape");
-    await sheet.waitFor({ state: "hidden" });
-    await captureCustomCommandsTab(
-      mobilePage,
-      path.join(artifactDir, "screenshot_custom_commands_mobile.png"),
-    );
 
     await browser.close();
   } finally {
