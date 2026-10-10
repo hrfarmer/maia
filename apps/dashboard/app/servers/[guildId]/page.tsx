@@ -1,8 +1,6 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DEFAULT_COMMANDS, getDb, getGuildWithCommands } from "@maia/db";
 import { auth } from "@/auth";
-import { AppShell } from "@/components/AppShell";
 import { GuildAvatar } from "@/components/GuildAvatar";
 import { ServerManagePanel } from "@/components/ServerManagePanel";
 import { Button } from "@/components/ui/button";
@@ -70,25 +68,23 @@ export default async function ServerDetailPage({ params }: PageProps) {
   const icon = guildIconUrl(guild, 80);
 
   return (
-    <AppShell>
-      <Button variant="ghost" size="sm" className="-ml-2 mb-6 w-fit" asChild>
-        <Link href="/servers">← Servers</Link>
-      </Button>
-
-      <div className="mb-8 flex items-center gap-4">
+    <>
+      <div className="mb-6 flex min-w-0 items-center gap-3 sm:mb-8 sm:gap-4">
         <GuildAvatar
           name={guild.name}
           iconUrl={icon}
-          className="size-14 rounded-sm"
+          className="size-12 shrink-0 rounded-sm sm:size-14"
         />
-        <h1 className="text-2xl font-semibold tracking-tight">{guild.name}</h1>
+        <h1 className="min-w-0 truncate text-xl font-semibold tracking-tight sm:text-2xl">
+          {guild.name}
+        </h1>
       </div>
 
-      <Card>
+      <Card className="min-w-0 overflow-hidden">
         <CardHeader className="border-b">
           <CardTitle className="text-base">Commands</CardTitle>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="min-w-0 overflow-x-auto p-0">
           <Table data-testid="command-list">
             <TableHeader>
               <TableRow>
@@ -119,10 +115,10 @@ export default async function ServerDetailPage({ params }: PageProps) {
           </Button>
         </div>
       ) : (
-        <div className="mt-6">
+        <div className="mt-6 min-w-0">
           <ServerManagePanel guildId={guildId} />
         </div>
       )}
-    </AppShell>
+    </>
   );
 }

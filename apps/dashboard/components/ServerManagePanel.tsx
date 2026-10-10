@@ -337,14 +337,44 @@ export function ServerManagePanel({ guildId }: ServerManagePanelProps) {
         </p>
       ) : null}
 
-      <Tabs defaultValue="members" data-testid="manage-tabs">
-        <TabsList variant="line" className="mb-4 w-full justify-start">
-          <TabsTrigger value="members">Members</TabsTrigger>
-          <TabsTrigger value="roles">Roles</TabsTrigger>
-          <TabsTrigger value="audit">Audit log</TabsTrigger>
-          <TabsTrigger value="api-keys">API keys</TabsTrigger>
-          <TabsTrigger value="custom-commands">Custom commands</TabsTrigger>
-        </TabsList>
+      <Tabs defaultValue="members" data-testid="manage-tabs" className="min-w-0">
+        <div className="-mx-4 mb-4 overflow-x-auto px-4 pb-1 md:mx-0 md:px-0">
+          <TabsList
+            variant="line"
+            className="h-auto w-max max-w-none justify-start gap-0 p-0"
+          >
+            <TabsTrigger
+              value="members"
+              className="min-h-10 flex-none shrink-0 whitespace-nowrap px-3"
+            >
+              Members
+            </TabsTrigger>
+            <TabsTrigger
+              value="roles"
+              className="min-h-10 flex-none shrink-0 whitespace-nowrap px-3"
+            >
+              Roles
+            </TabsTrigger>
+            <TabsTrigger
+              value="audit"
+              className="min-h-10 flex-none shrink-0 whitespace-nowrap px-3"
+            >
+              Audit log
+            </TabsTrigger>
+            <TabsTrigger
+              value="api-keys"
+              className="min-h-10 flex-none shrink-0 whitespace-nowrap px-3"
+            >
+              API keys
+            </TabsTrigger>
+            <TabsTrigger
+              value="custom-commands"
+              className="min-h-10 flex-none shrink-0 whitespace-nowrap px-3"
+            >
+              Custom commands
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="members" className="space-y-4">
           <div className="grid gap-4 lg:grid-cols-2">
@@ -580,7 +610,7 @@ export function ServerManagePanel({ guildId }: ServerManagePanelProps) {
                 </div>
               </div>
             </CardContent>
-            <CardContent className="p-0">
+            <CardContent className="overflow-x-auto p-0">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -618,8 +648,8 @@ export function ServerManagePanel({ guildId }: ServerManagePanelProps) {
             <CardHeader className="border-b py-4">
               <CardTitle className="text-base">Audit log</CardTitle>
             </CardHeader>
-            <CardContent className="p-0">
-              <Table data-testid="audit-table">
+            <CardContent className="overflow-x-auto p-0">
+              <Table data-testid="audit-table" className="min-w-[32rem]">
                 <TableHeader>
                   <TableRow>
                     <TableHead className="pl-4">Action</TableHead>
@@ -689,7 +719,8 @@ export function ServerManagePanel({ guildId }: ServerManagePanelProps) {
                   {createdToken}
                 </p>
               ) : null}
-              <Table>
+              <div className="overflow-x-auto">
+              <Table className="min-w-[24rem]">
                 <TableHeader>
                   <TableRow>
                     <TableHead className="pl-4">Name</TableHead>
@@ -726,6 +757,7 @@ export function ServerManagePanel({ guildId }: ServerManagePanelProps) {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
