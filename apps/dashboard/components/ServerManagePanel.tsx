@@ -338,10 +338,10 @@ export function ServerManagePanel({ guildId }: ServerManagePanelProps) {
       ) : null}
 
       <Tabs defaultValue="members" data-testid="manage-tabs" className="min-w-0">
-        <div className="-mx-4 mb-4 overflow-x-auto px-4 pb-1 md:mx-0 md:px-0">
+        <div className="-mx-4 mb-4 min-w-0 px-4 md:mx-0 md:px-0">
           <TabsList
             variant="line"
-            className="h-auto w-max max-w-none justify-start gap-0 p-0"
+            className="mb-0 h-auto w-full max-w-full justify-start gap-0"
           >
             <TabsTrigger
               value="members"
