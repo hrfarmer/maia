@@ -6,6 +6,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core";
 
@@ -14,6 +15,10 @@ export const guilds = pgTable("guilds", {
   name: text("name").notNull(),
   joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
   leftAt: timestamp("left_at", { withTimezone: true }),
+  customCommandSyncError: text("custom_command_sync_error"),
+  customCommandSyncedAt: timestamp("custom_command_synced_at", {
+    withTimezone: true,
+  }),
 });
 
 export const guildCommands = pgTable(
@@ -26,6 +31,34 @@ export const guildCommands = pgTable(
     enabled: boolean("enabled").notNull().default(true),
   },
   (table) => [primaryKey({ columns: [table.guildId, table.commandName] })],
+);
+
+export const guildCustomCommands = pgTable(
+  "guild_custom_commands",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    guildId: varchar("guild_id", { length: 20 })
+      .notNull()
+      .references(() => guilds.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 32 }).notNull(),
+    description: varchar("description", { length: 100 }).notNull(),
+    /** Plain-text reply for now; room for structured payloads later. */
+    responseText: text("response_text").notNull(),
+    enabled: boolean("enabled").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("guild_custom_commands_guild_name_idx").on(
+      table.guildId,
+      table.name,
+    ),
+    index("guild_custom_commands_guild_id_idx").on(table.guildId),
+  ],
 );
 
 export const guildApiKeys = pgTable(
@@ -73,9 +106,20 @@ export const auditLogs = pgTable(
 
 export const guildsRelations = relations(guilds, ({ many }) => ({
   guildCommands: many(guildCommands),
+  guildCustomCommands: many(guildCustomCommands),
   guildApiKeys: many(guildApiKeys),
   auditLogs: many(auditLogs),
 }));
+
+export const guildCustomCommandsRelations = relations(
+  guildCustomCommands,
+  ({ one }) => ({
+    guild: one(guilds, {
+      fields: [guildCustomCommands.guildId],
+      references: [guilds.id],
+    }),
+  }),
+);
 
 export const guildCommandsRelations = relations(guildCommands, ({ one }) => ({
   guild: one(guilds, {
@@ -114,4 +158,9 @@ export type AuditAction =
   | "member.unban"
   | "member.timeout"
   | "member.untimeout"
-  | "member.nickname";
+  | "member.nickname"
+  | "custom_command.create"
+  | "custom_command.update"
+  | "custom_command.delete";
+
+export type AuditTargetType = "member" | "role" | "ban" | "custom_command";
