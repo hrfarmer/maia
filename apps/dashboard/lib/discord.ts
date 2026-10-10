@@ -10,17 +10,34 @@ export interface DiscordPartialGuild {
   permissions: string;
 }
 
+/** Dev-only sentinel; resolved to a local image in guildIconUrl. */
+export const DEV_GUILD_ICON_SENTINEL = "dev_local_northwatch";
+
 const devGuildFixtures: DiscordPartialGuild[] = [
   {
     id: "123456789012345678",
     name: "Northwatch",
-    icon: null,
+    icon: DEV_GUILD_ICON_SENTINEL,
     owner: false,
     permissions: "32",
   },
   {
     id: "987654321098765432",
     name: "Relay Station",
+    icon: null,
+    owner: false,
+    permissions: "32",
+  },
+  {
+    id: "555555555555555555",
+    name: "Atlas Ops",
+    icon: null,
+    owner: false,
+    permissions: "32",
+  },
+  {
+    id: "666666666666666666",
+    name: "Harbor Nine",
     icon: null,
     owner: false,
     permissions: "32",
@@ -61,6 +78,12 @@ export function filterManageableGuilds(guilds: DiscordPartialGuild[]) {
 export function guildIconUrl(guild: DiscordPartialGuild, size = 64) {
   if (!guild.icon) {
     return null;
+  }
+  if (
+    process.env.MAIA_ENABLE_DEV_HELPERS === "1" &&
+    guild.icon === DEV_GUILD_ICON_SENTINEL
+  ) {
+    return `/dev-guild-icons/northwatch.svg`;
   }
   const extension = guild.icon.startsWith("a_") ? "gif" : "png";
   return `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.${extension}?size=${size}`;
