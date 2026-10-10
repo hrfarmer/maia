@@ -92,6 +92,12 @@ async function main() {
     });
     await mobilePage.waitForSelector('[data-testid="manage-tabs"]');
     await mobilePage.waitForTimeout(2500);
+    await mobilePage
+      .locator('[data-testid="manage-tabs"] > div')
+      .first()
+      .evaluate((el) => {
+        el.scrollLeft = el.scrollWidth;
+      });
     await mobilePage.screenshot({
       path: path.join(artifactDir, "screenshot_mobile_sidebar_closed.png"),
       fullPage: true,
