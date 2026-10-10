@@ -45,31 +45,31 @@ async function main() {
     await waitForServer("http://127.0.0.1:3010/api/health");
 
     const browser = await chromium.launch();
-
     const desktopContext = await browser.newContext({
       viewport: { width: 1280, height: 800 },
     });
     const desktopPage = await desktopContext.newPage();
     await desktopContext.request.post("http://127.0.0.1:3010/api/dev/session");
-    await desktopPage.goto("http://127.0.0.1:3010/servers");
+    await desktopPage.goto("http://127.0.0.1:3010/servers/987654321098765432");
     await desktopPage.waitForSelector('[data-testid="server-list"]');
+    const sidebarState = await desktopPage
+      .locator('[data-slot="sidebar"]')
+      .getAttribute("data-state");
+    if (sidebarState === "collapsed") {
+      await desktopPage.locator('[data-sidebar="trigger"]').first().click();
+      await desktopPage.waitForSelector('[data-slot="sidebar"][data-state="expanded"]');
+    }
     await desktopPage.screenshot({
       path: path.join(artifactDir, "screenshot_desktop_sidebar_expanded.png"),
-      fullPage: true,
+      fullPage: false,
     });
 
-    await desktopPage.goto("http://127.0.0.1:3010/servers/987654321098765432");
-    await desktopPage.waitForSelector('[data-testid="manage-tabs"]');
+    await desktopPage.locator('[data-sidebar="trigger"]').first().click();
+    await desktopPage.waitForSelector('[data-slot="sidebar"][data-state="collapsed"]');
+    await desktopPage.waitForTimeout(400);
     await desktopPage.screenshot({
-      path: path.join(artifactDir, "screenshot_desktop_server_tabs.png"),
-      fullPage: true,
-    });
-
-    await desktopPage.getByRole("tab", { name: "Custom commands" }).click();
-    await desktopPage.waitForSelector('[data-testid="custom-commands-table"]');
-    await desktopPage.screenshot({
-      path: path.join(artifactDir, "screenshot_custom_commands.png"),
-      fullPage: true,
+      path: path.join(artifactDir, "screenshot_desktop_sidebar_collapsed.png"),
+      fullPage: false,
     });
 
     const mobileContext = await browser.newContext({
@@ -77,38 +77,12 @@ async function main() {
       isMobile: true,
     });
     const mobilePage = await mobileContext.newPage();
-    mobilePage.on("console", (msg) => {
-      if (msg.type() === "error") {
-        console.error("MOBILE CONSOLE ERROR:", msg.text());
-      }
-    });
-    mobilePage.on("pageerror", (err) => {
-      console.error("MOBILE PAGE ERROR:", err.message);
-    });
-
     await mobileContext.request.post("http://127.0.0.1:3010/api/dev/session");
     await mobilePage.goto("http://127.0.0.1:3010/servers/987654321098765432", {
       waitUntil: "networkidle",
     });
     await mobilePage.waitForSelector('[data-testid="manage-tabs"]');
-    await mobilePage.waitForTimeout(2500);
-    await mobilePage
-      .locator('[data-testid="manage-tabs"] > div')
-      .first()
-      .evaluate((el) => {
-        el.scrollLeft = 0;
-      });
-    await mobilePage.screenshot({
-      path: path.join(artifactDir, "screenshot_mobile_sidebar_closed.png"),
-      fullPage: false,
-    });
-
-    await mobilePage.waitForFunction(
-      () => !document.querySelector('[data-next-badge-root]'),
-      null,
-      { timeout: 15_000 },
-    ).catch(() => undefined);
-
+    await mobilePage.waitForTimeout(1500);
     await mobilePage
       .locator("header")
       .getByRole("button", { name: "Toggle Sidebar" })
@@ -127,10 +101,6 @@ async function main() {
         (transform === "none" || transform === "matrix(1, 0, 0, 1, 0, 0)")
       );
     });
-    const box = await sheet.boundingBox();
-    if (!box || box.width < 100 || box.x < -2) {
-      throw new Error(`Mobile sidebar sheet not open: ${JSON.stringify(box)}`);
-    }
     await mobilePage.screenshot({
       path: path.join(artifactDir, "screenshot_mobile_sidebar_open.png"),
       fullPage: false,

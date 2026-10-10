@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BookOpen, Circle, Plus } from "lucide-react";
+import { SignOutSidebarItem } from "@/components/SignOutSidebarItem";
 import { GuildAvatar } from "@/components/GuildAvatar";
 import {
   Sidebar,
@@ -17,8 +18,8 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
-  SidebarSeparator,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { botInviteUrl } from "@/lib/discord";
 import type { ServerListItem } from "@/lib/servers";
@@ -28,35 +29,46 @@ interface AppSidebarProps {
   servers: ServerListItem[];
   userName: string | null | undefined;
   userImage: string | null | undefined;
-  signOut: React.ReactNode;
 }
 
 export function AppSidebar({
   servers,
   userName,
   userImage,
-  signOut,
 }: AppSidebarProps) {
   const pathname = usePathname();
+  const { state, isMobile } = useSidebar();
+  const iconRail = state === "collapsed" && !isMobile;
 
   return (
     <Sidebar collapsible="icon" variant="sidebar">
-      <SidebarHeader className="border-b border-sidebar-border">
-        <div className="flex items-center gap-2 px-1 py-1">
-          <SidebarMenu className="flex-1">
-            <SidebarMenuItem>
-              <SidebarMenuButton size="lg" asChild tooltip="Maia">
-                <Link href="/servers">
-                  <span className="flex size-8 items-center justify-center rounded-sm bg-primary text-sm font-semibold text-primary-foreground">
-                    M
-                  </span>
-                  <span className="font-semibold tracking-tight">Maia</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-          <SidebarTrigger className="hidden size-9 shrink-0 md:inline-flex" />
-        </div>
+      <SidebarHeader
+        className={cn(
+          "border-b border-sidebar-border",
+          iconRail
+            ? "flex flex-col items-center gap-2 py-2"
+            : "flex flex-row items-center gap-1",
+        )}
+      >
+        <SidebarMenu className={cn(iconRail ? "w-full" : "min-w-0 flex-1")}>
+          <SidebarMenuItem className={cn(iconRail && "flex justify-center")}>
+            <SidebarMenuButton size="lg" asChild tooltip="Maia">
+              <Link href="/servers">
+                <span className="flex aspect-square size-8 shrink-0 items-center justify-center rounded-sm bg-primary text-sm font-semibold text-primary-foreground">
+                  M
+                </span>
+                {!iconRail ? (
+                  <span className="truncate font-semibold tracking-tight">Maia</span>
+                ) : null}
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+        {!iconRail ? (
+          <SidebarTrigger className="hidden shrink-0 md:inline-flex" />
+        ) : (
+          <SidebarTrigger className="shrink-0" />
+        )}
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
@@ -64,7 +76,12 @@ export function AppSidebar({
           <SidebarGroupContent>
             <SidebarMenu data-testid="server-list">
               {servers.length === 0 ? (
-                <p className="px-2 py-3 text-xs text-muted-foreground">
+                <p
+                  className={cn(
+                    "px-2 py-3 text-xs text-muted-foreground",
+                    iconRail && "sr-only",
+                  )}
+                >
                   No servers with Manage Server permission.
                 </p>
               ) : (
@@ -73,44 +90,48 @@ export function AppSidebar({
                   const isActive =
                     pathname === href || pathname.startsWith(`${href}/`);
                   return (
-                    <SidebarMenuItem key={server.id}>
+                    <SidebarMenuItem
+                      key={server.id}
+                      className={cn(iconRail && "flex justify-center")}
+                    >
                       <SidebarMenuButton
                         asChild
                         isActive={isActive}
-                        size="lg"
                         tooltip={server.name}
-                        className="min-h-10"
+                        className={cn(iconRail && "justify-center")}
                       >
                         <Link href={href}>
                           <GuildAvatar
                             name={server.name}
                             iconUrl={server.iconUrl}
+                            maiaPresent={server.maiaPresent}
                             className="size-8 shrink-0"
                           />
-                          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                            <span className="truncate">{server.name}</span>
-                            <span className="flex items-center gap-1 text-xs font-normal text-muted-foreground">
-                              <Circle
-                                className={cn(
-                                  "size-2 fill-current",
-                                  server.maiaPresent
-                                    ? "text-foreground"
-                                    : "text-muted-foreground/40",
-                                )}
-                                aria-hidden
-                              />
-                              {server.maiaPresent ? "Maia active" : "Not added"}
+                          {!iconRail ? (
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate">{server.name}</span>
+                              <span className="flex items-center gap-1 text-xs font-normal text-muted-foreground">
+                                <Circle
+                                  className={cn(
+                                    "size-2 shrink-0 fill-current",
+                                    server.maiaPresent
+                                      ? "text-foreground"
+                                      : "text-muted-foreground/40",
+                                  )}
+                                  aria-hidden
+                                />
+                                {server.maiaPresent ? "Maia active" : "Not added"}
+                              </span>
                             </span>
-                          </span>
+                          ) : null}
                         </Link>
                       </SidebarMenuButton>
-                      {!server.maiaPresent ? (
+                      {!server.maiaPresent && !iconRail ? (
                         <SidebarMenuAction asChild title="Add Maia">
                           <a
                             href={botInviteUrl(server.id)}
                             target="_blank"
                             rel="noreferrer"
-                            className="size-8 md:size-7"
                             aria-label={`Add Maia to ${server.name}`}
                           >
                             <Plus />
@@ -127,34 +148,44 @@ export function AppSidebar({
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border">
         <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild size="lg" tooltip="API docs">
+          <SidebarMenuItem className={cn(iconRail && "flex justify-center")}>
+            <SidebarMenuButton
+              asChild
+              tooltip="API docs"
+              className={cn(iconRail && "justify-center")}
+            >
               <Link href="/docs">
-                <BookOpen />
-                <span>API docs</span>
+                <BookOpen className="size-4 shrink-0" />
+                {!iconRail ? <span>API docs</span> : null}
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
+          <SidebarMenuItem className={cn(iconRail && "flex justify-center")}>
+            <SidebarMenuButton
+              tooltip={userName ?? "Signed in"}
+              className={cn(iconRail && "justify-center")}
+            >
+              {userImage ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={userImage}
+                  alt=""
+                  className="aspect-square size-8 shrink-0 rounded-sm object-cover"
+                />
+              ) : (
+                <span className="flex aspect-square size-8 shrink-0 items-center justify-center rounded-sm bg-muted text-xs font-medium">
+                  {(userName ?? "?").slice(0, 1).toUpperCase()}
+                </span>
+              )}
+              {!iconRail ? (
+                <span className="truncate">{userName ?? "Signed in"}</span>
+              ) : null}
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem className={cn(iconRail && "flex justify-center")}>
+            <SignOutSidebarItem iconRail={iconRail} />
+          </SidebarMenuItem>
         </SidebarMenu>
-        <SidebarSeparator />
-        <div className="flex items-center gap-2 px-2 py-1">
-          {userImage ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={userImage}
-              alt=""
-              className="size-8 shrink-0 rounded-sm bg-muted object-cover"
-            />
-          ) : (
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-sm bg-muted text-xs font-medium">
-              {(userName ?? "?").slice(0, 1).toUpperCase()}
-            </span>
-          )}
-          <span className="min-w-0 flex-1 truncate text-sm group-data-[collapsible=icon]:hidden">
-            {userName ?? "Signed in"}
-          </span>
-        </div>
-        {signOut}
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

@@ -12,7 +12,6 @@ interface DashboardShellProps {
   servers: ServerListItem[];
   userName: string | null | undefined;
   userImage: string | null | undefined;
-  signOut: React.ReactNode;
   children: React.ReactNode;
 }
 
@@ -20,7 +19,6 @@ export function DashboardShell({
   servers,
   userName,
   userImage,
-  signOut,
   children,
 }: DashboardShellProps) {
   return (
@@ -29,7 +27,6 @@ export function DashboardShell({
         servers={servers}
         userName={userName}
         userImage={userImage}
-        signOut={signOut}
       />
       <SidebarInset>
         <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4 md:hidden">
