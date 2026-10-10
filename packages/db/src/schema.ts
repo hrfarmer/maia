@@ -45,6 +45,7 @@ export const guildCustomCommands = pgTable(
     /** Plain-text reply for now; room for structured payloads later. */
     responseText: text("response_text").notNull(),
     enabled: boolean("enabled").notNull().default(true),
+    ephemeral: boolean("ephemeral").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

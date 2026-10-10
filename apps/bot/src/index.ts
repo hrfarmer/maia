@@ -106,7 +106,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 
   try {
-    await interaction.reply({ content: custom.responseText });
+    await interaction.reply({
+      content: custom.responseText,
+      ephemeral: custom.ephemeral,
+    });
   } catch (error) {
     console.error(error);
     const payload = {

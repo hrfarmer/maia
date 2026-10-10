@@ -6,6 +6,21 @@ import { chromium } from "playwright";
 const artifactDir = "/opt/cursor/artifacts";
 const root = path.resolve(import.meta.dirname, "..");
 
+const hideDevUiInitScript = () => {
+  const selectors =
+    "nextjs-portal, [data-nextjs-toast], #devtools-indicator, [data-next-badge-root]";
+  const hide = () => {
+    document.querySelectorAll(selectors).forEach((el) => {
+      el.remove();
+    });
+  };
+  hide();
+  new MutationObserver(hide).observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+  });
+};
+
 async function waitForServer(url, timeoutMs = 60_000) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
@@ -20,6 +35,16 @@ async function waitForServer(url, timeoutMs = 60_000) {
   throw new Error("Server did not become ready");
 }
 
+async function captureCustomCommandsTab(page, outputPath) {
+  await page.getByRole("tab", { name: "Custom commands" }).click();
+  await page.waitForSelector('[data-testid="custom-commands-table"]');
+  await page.getByText("/rules").waitFor({ timeout: 15_000 });
+  await page.screenshot({
+    path: outputPath,
+    fullPage: true,
+  });
+}
+
 async function main() {
   fs.mkdirSync(artifactDir, { recursive: true });
 
@@ -28,7 +53,8 @@ async function main() {
     AUTH_SECRET: process.env.AUTH_SECRET ?? "dev-screenshot-secret-32chars!!",
     AUTH_URL: "http://127.0.0.1:3010",
     NEXT_PUBLIC_BASE_URL: "http://127.0.0.1:3010",
-    NEXT_PUBLIC_DISCORD_CLIENT_ID: process.env.NEXT_PUBLIC_DISCORD_CLIENT_ID ?? "000000000000000000",
+    NEXT_PUBLIC_DISCORD_CLIENT_ID:
+      process.env.NEXT_PUBLIC_DISCORD_CLIENT_ID ?? "000000000000000000",
     DISCORD_CLIENT_ID: process.env.DISCORD_CLIENT_ID ?? "000000000000000000",
     DISCORD_CLIENT_SECRET: process.env.DISCORD_CLIENT_SECRET ?? "dev",
     DATABASE_URL: process.env.DATABASE_URL ?? "",
@@ -49,6 +75,7 @@ async function main() {
       viewport: { width: 1280, height: 800 },
       colorScheme: "dark",
     });
+    await desktopContext.addInitScript(hideDevUiInitScript);
     const desktopPage = await desktopContext.newPage();
     await desktopContext.request.post("http://127.0.0.1:3010/api/dev/session");
     await desktopPage.goto("http://127.0.0.1:3010/servers/987654321098765432");
@@ -58,7 +85,9 @@ async function main() {
       .getAttribute("data-state");
     if (sidebarState === "collapsed") {
       await desktopPage.locator('[data-sidebar="trigger"]').first().click();
-      await desktopPage.waitForSelector('[data-slot="sidebar"][data-state="expanded"]');
+      await desktopPage.waitForSelector(
+        '[data-slot="sidebar"][data-state="expanded"]',
+      );
     }
     await desktopPage.screenshot({
       path: path.join(artifactDir, "screenshot_desktop_sidebar_expanded.png"),
@@ -66,18 +95,26 @@ async function main() {
     });
 
     await desktopPage.locator('[data-sidebar="trigger"]').first().click();
-    await desktopPage.waitForSelector('[data-slot="sidebar"][data-state="collapsed"]');
+    await desktopPage.waitForSelector(
+      '[data-slot="sidebar"][data-state="collapsed"]',
+    );
     await desktopPage.waitForTimeout(400);
     await desktopPage.screenshot({
       path: path.join(artifactDir, "screenshot_desktop_sidebar_collapsed.png"),
       fullPage: false,
     });
 
+    await captureCustomCommandsTab(
+      desktopPage,
+      path.join(artifactDir, "screenshot_custom_commands_desktop.png"),
+    );
+
     const mobileContext = await browser.newContext({
       viewport: { width: 390, height: 844 },
       isMobile: true,
       colorScheme: "dark",
     });
+    await mobileContext.addInitScript(hideDevUiInitScript);
     const mobilePage = await mobileContext.newPage();
     await mobileContext.request.post("http://127.0.0.1:3010/api/dev/session");
     await mobilePage.goto("http://127.0.0.1:3010/servers/987654321098765432", {
@@ -107,6 +144,13 @@ async function main() {
       path: path.join(artifactDir, "screenshot_mobile_sidebar_open.png"),
       fullPage: false,
     });
+
+    await mobilePage.keyboard.press("Escape");
+    await sheet.waitFor({ state: "hidden" });
+    await captureCustomCommandsTab(
+      mobilePage,
+      path.join(artifactDir, "screenshot_custom_commands_mobile.png"),
+    );
 
     await browser.close();
   } finally {
