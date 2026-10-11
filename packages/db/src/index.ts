@@ -9,4 +9,5 @@ export * from "./guild-plugins.js";
 export * from "./guild-plugin-oauth.js";
 export * from "./guild-plugin-slash.js";
 export * from "./plugin-guild-notifications.js";
+export * from "./spacelab-roster.js";
 export * from "./schema.js";

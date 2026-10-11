@@ -187,6 +187,29 @@ export const pluginRunRequests = pgTable(
   ],
 );
 
+export const spacelabGuildRosterState = pgTable("spacelab_guild_roster_state", {
+  guildId: varchar("guild_id", { length: 20 })
+    .primaryKey()
+    .references(() => guilds.id, { onDelete: "cascade" }),
+  rowsJson: text("rows_json").notNull(),
+  adaptValuesJson: text("adapt_values_json").notNull(),
+  parsedAt: timestamp("parsed_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const spacelabAdaptRoleLinks = pgTable(
+  "spacelab_adapt_role_links",
+  {
+    guildId: varchar("guild_id", { length: 20 })
+      .notNull()
+      .references(() => guilds.id, { onDelete: "cascade" }),
+    adaptValue: text("adapt_value").notNull(),
+    discordRoleId: text("discord_role_id").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.guildId, table.adaptValue] })],
+);
+
 export const pluginGuildConfigNotifications = pgTable(
   "plugin_guild_config_notifications",
   {
