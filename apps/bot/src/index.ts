@@ -21,6 +21,8 @@ import { runPluginScan } from "./plugins/run-scan.js";
 import { startPluginCronLoop } from "./plugins/cron-loop.js";
 import { startPluginRuntimeLoop } from "./plugins/runtime-loop.js";
 import { PluginTokenRegistry } from "./plugins/token-registry.js";
+import { PluginEventInvocationConcurrency } from "./plugins/event-invocation-concurrency.js";
+import { registerMemberRoleGatewayEvents } from "./plugins/register-member-role-events.js";
 
 const token = process.env.DISCORD_TOKEN;
 if (!token) {
@@ -178,6 +180,17 @@ async function bootstrap() {
     log: (line) => console.log(line),
   });
   startPluginCronLoop(db);
+
+  const eventInvocationConcurrency = new PluginEventInvocationConcurrency();
+  registerMemberRoleGatewayEvents({
+    client,
+    db,
+    alwaysOnSupervisor,
+    tokenRegistry,
+    pluginApiUrl: pluginApi.url(),
+    concurrency: eventInvocationConcurrency,
+    log: (line) => console.log(line),
+  });
 
   await client.login(token);
 }

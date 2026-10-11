@@ -30,6 +30,8 @@ export async function runPluginScan(
         command: entry.manifest?.command ?? null,
         environment: entry.manifest?.environment ?? null,
         invocationTimeLimitMs: entry.manifest?.invocationTimeLimitMs ?? null,
+        maxConcurrentInvocations:
+          entry.manifest?.maxConcurrentInvocations ?? null,
       })),
     });
     await pruneGuildPluginConfigForRemovedPlugins(db, activePluginIds);

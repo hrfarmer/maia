@@ -15,6 +15,8 @@ const demoPlugin = (): LatestRunnablePlugin => ({
   command: ["noop"],
   environment: [],
   invocationTimeLimitMs: null,
+  subscribedEvents: [],
+  maxConcurrentInvocations: 8,
 });
 
 function mockHandle(input: {

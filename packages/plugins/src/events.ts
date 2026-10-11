@@ -24,3 +24,26 @@ export const INVOCATION_FORBIDDEN_EVENTS = new Set<string>([
 export function isKnownPluginEvent(value: string): value is PluginEvent {
   return PLUGIN_EVENT_SET.has(value);
 }
+
+/** Gateway events delivered in issue #19 (member and role). */
+export const MEMBER_ROLE_PLUGIN_EVENTS = [
+  "member.join",
+  "member.leave",
+  "member.update",
+  "role.create",
+  "role.update",
+  "role.delete",
+] as const satisfies readonly PluginEvent[];
+
+export type MemberRolePluginEvent =
+  (typeof MEMBER_ROLE_PLUGIN_EVENTS)[number];
+
+const MEMBER_ROLE_PLUGIN_EVENT_SET = new Set<string>(
+  MEMBER_ROLE_PLUGIN_EVENTS,
+);
+
+export function isMemberRolePluginEvent(
+  value: string,
+): value is MemberRolePluginEvent {
+  return MEMBER_ROLE_PLUGIN_EVENT_SET.has(value);
+}

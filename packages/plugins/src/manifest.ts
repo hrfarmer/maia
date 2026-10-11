@@ -12,6 +12,8 @@ export const RESERVED_ENV_KEYS = new Set([
 
 export type PluginLifetime = "invocation" | "always-on";
 
+export const DEFAULT_MAX_CONCURRENT_INVOCATIONS = 8;
+
 export interface PluginEnvironmentKey {
   key: string;
   required: boolean;
@@ -27,6 +29,8 @@ export interface PluginManifest {
   environment: PluginEnvironmentKey[];
   /** Required for invocation plugins; unused for always-on. */
   invocationTimeLimitMs: number | null;
+  /** Invocation-only cap for concurrent member/role event processes; default 8. */
+  maxConcurrentInvocations: number | null;
 }
 
 export class PluginManifestError extends Error {
@@ -91,6 +95,26 @@ function parseSubscribedEvents(value: unknown): string[] {
     events.push(item);
   }
   return events;
+}
+
+function parseMaxConcurrentInvocations(
+  value: unknown,
+  lifetime: PluginLifetime,
+): number | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  if (lifetime === "always-on") {
+    throw new PluginManifestError(
+      "maxConcurrentInvocations applies only to invocation plugins",
+    );
+  }
+  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
+    throw new PluginManifestError(
+      "maxConcurrentInvocations must be a positive integer",
+    );
+  }
+  return value;
 }
 
 function parseInvocationTimeLimitMs(
@@ -168,6 +192,10 @@ export function parsePluginManifest(raw: unknown): PluginManifest {
     record.invocationTimeLimitMs,
     lifetime,
   );
+  const maxConcurrentInvocations = parseMaxConcurrentInvocations(
+    record.maxConcurrentInvocations,
+    lifetime,
+  );
 
   if (
     lifetime === "invocation" &&
@@ -186,6 +214,7 @@ export function parsePluginManifest(raw: unknown): PluginManifest {
     command,
     environment,
     invocationTimeLimitMs,
+    maxConcurrentInvocations,
   };
 }
 
