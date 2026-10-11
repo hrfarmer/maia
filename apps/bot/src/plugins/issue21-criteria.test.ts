@@ -36,7 +36,7 @@ const CRITERIA = [
   },
   {
     id: "dashboard-moderation",
-    test: "apps/dashboard/app/api/servers/[guildId]/roles/route.ts",
+    test: "apps/dashboard/lib/moderation/dashboard-routes.test.ts",
   },
   {
     id: "automated-tests",
