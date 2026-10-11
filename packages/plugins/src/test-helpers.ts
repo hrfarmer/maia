@@ -1,15 +1,18 @@
 import type { DiscoverPluginsOptions } from "./discover.js";
 
 export function validManifest(overrides: Record<string, unknown> = {}) {
-  return {
+  const lifetime = (overrides.lifetime as string | undefined) ?? "always-on";
+  const base: Record<string, unknown> = {
     id: "demo",
     name: "Demo plugin",
-    lifetime: "always-on",
+    lifetime,
     subscribedEvents: ["member.join"],
     command: ["node", "index.js"],
     environment: [],
-    ...overrides,
+    invocationTimeLimitMs:
+      lifetime === "invocation" ? 60_000 : undefined,
   };
+  return { ...base, ...overrides };
 }
 
 export function mockDiscoverFs(input: {

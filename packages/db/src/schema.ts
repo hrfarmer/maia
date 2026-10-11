@@ -2,6 +2,7 @@ import { relations } from "drizzle-orm";
 import {
   boolean,
   index,
+  integer,
   pgTable,
   primaryKey,
   text,
@@ -104,8 +105,62 @@ export const discoveredPlugins = pgTable(
     lifetime: varchar("lifetime", { length: 16 }),
     subscribedEvents: text("subscribed_events"),
     errorMessage: text("error_message"),
+    commandJson: text("command_json"),
+    environmentJson: text("environment_json"),
+    invocationTimeLimitMs: integer("invocation_time_limit_ms"),
   },
   (table) => [index("discovered_plugins_scan_id_idx").on(table.scanId)],
+);
+
+export const guildPluginSettings = pgTable(
+  "guild_plugin_settings",
+  {
+    guildId: varchar("guild_id", { length: 20 })
+      .notNull()
+      .references(() => guilds.id, { onDelete: "cascade" }),
+    pluginId: text("plugin_id").notNull(),
+    enabled: boolean("enabled").notNull().default(false),
+  },
+  (table) => [primaryKey({ columns: [table.guildId, table.pluginId] })],
+);
+
+export const guildPluginEnvValues = pgTable(
+  "guild_plugin_env_values",
+  {
+    guildId: varchar("guild_id", { length: 20 })
+      .notNull()
+      .references(() => guilds.id, { onDelete: "cascade" }),
+    pluginId: text("plugin_id").notNull(),
+    envKey: text("env_key").notNull(),
+    value: text("value").notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.guildId, table.pluginId, table.envKey],
+    }),
+  ],
+);
+
+export const pluginRunRequests = pgTable(
+  "plugin_run_requests",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    guildId: varchar("guild_id", { length: 20 })
+      .notNull()
+      .references(() => guilds.id, { onDelete: "cascade" }),
+    pluginId: text("plugin_id").notNull(),
+    requestedAt: timestamp("requested_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("plugin_run_requests_guild_plugin_idx").on(
+      table.guildId,
+      table.pluginId,
+    ),
+  ],
 );
 
 export const botRuntimeState = pgTable("bot_runtime_state", {
@@ -194,9 +249,10 @@ export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
 
 export const DEFAULT_COMMANDS = ["hello", "role", "member"] as const;
 
-export type AuditSource = "command" | "dashboard" | "api";
+export type AuditSource = "command" | "dashboard" | "api" | "plugin";
 
 export type AuditAction =
+  | "plugin.run"
   | "role.add"
   | "role.remove"
   | "role.set"
@@ -213,4 +269,9 @@ export type AuditAction =
   | "custom_command.update"
   | "custom_command.delete";
 
-export type AuditTargetType = "member" | "role" | "ban" | "custom_command";
+export type AuditTargetType =
+  | "member"
+  | "role"
+  | "ban"
+  | "custom_command"
+  | "plugin";

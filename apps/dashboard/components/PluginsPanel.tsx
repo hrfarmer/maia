@@ -1,8 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -13,6 +16,14 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
+interface PluginEnvironmentField {
+  key: string;
+  required: boolean;
+  secret: boolean;
+  value: string | null;
+  hasSecretValue: boolean;
+}
+
 interface PluginRow {
   id: string;
   directoryName: string;
@@ -22,6 +33,10 @@ interface PluginRow {
   lifetime: string | null;
   subscribedEvents: string[];
   errorMessage: string | null;
+  environment: PluginEnvironmentField[];
+  enabled: boolean;
+  canEnable: boolean;
+  canRunNow: boolean;
 }
 
 interface ScanState {
@@ -48,6 +63,16 @@ function formatEvents(events: string[]) {
   return events.join(", ");
 }
 
+function errorRowLabel(plugin: PluginRow) {
+  if (plugin.displayName) {
+    return plugin.displayName;
+  }
+  if (plugin.pluginId) {
+    return plugin.pluginId;
+  }
+  return plugin.directoryName;
+}
+
 export function PluginsPanel({ guildId }: PluginsPanelProps) {
   const [scan, setScan] = useState<ScanState>({
     completedAt: null,
@@ -56,6 +81,8 @@ export function PluginsPanel({ guildId }: PluginsPanelProps) {
   });
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [draftValues, setDraftValues] = useState<Record<string, string>>({});
+  const [selectedPluginId, setSelectedPluginId] = useState<string | null>(null);
 
   const loadPlugins = useCallback(async () => {
     const res = await fetch(`/api/servers/${guildId}/plugins`);
@@ -66,23 +93,44 @@ export function PluginsPanel({ guildId }: PluginsPanelProps) {
       scan: {
         completedAt: string | null;
         scanError: string | null;
-        plugins: PluginRow[];
+        plugins?: PluginRow[];
       } | null;
+      plugins?: PluginRow[];
     };
+    const pluginRows = data.plugins ?? data.scan?.plugins ?? [];
     if (!data.scan) {
-      setScan({ completedAt: null, scanError: null, plugins: [] });
+      setScan({ completedAt: null, scanError: null, plugins: pluginRows });
       return;
     }
     setScan({
       completedAt: data.scan.completedAt,
       scanError: data.scan.scanError,
-      plugins: data.scan.plugins ?? [],
+      plugins: pluginRows,
     });
   }, [guildId]);
 
   useEffect(() => {
     void loadPlugins();
   }, [loadPlugins]);
+
+  const selectedPlugin = useMemo(
+    () => scan.plugins.find((plugin) => plugin.pluginId === selectedPluginId),
+    [scan.plugins, selectedPluginId],
+  );
+
+  useEffect(() => {
+    if (!selectedPlugin) {
+      setDraftValues({});
+      return;
+    }
+    const next: Record<string, string> = {};
+    for (const field of selectedPlugin.environment) {
+      if (!field.secret && field.value) {
+        next[field.key] = field.value;
+      }
+    }
+    setDraftValues(next);
+  }, [selectedPlugin]);
 
   async function requestRefresh() {
     setBusy(true);
@@ -101,6 +149,56 @@ export function PluginsPanel({ guildId }: PluginsPanelProps) {
       }
       setStatus("Refresh requested");
       await loadPlugins();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function savePluginConfig(input: {
+    pluginId: string;
+    enabled?: boolean;
+    values?: Record<string, string | null>;
+  }) {
+    setBusy(true);
+    setStatus(null);
+    try {
+      const res = await fetch(
+        `/api/servers/${guildId}/plugins/${input.pluginId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            enabled: input.enabled,
+            values: input.values,
+          }),
+        },
+      );
+      const data = (await res.json()) as { error?: string; plugin?: PluginRow };
+      if (!res.ok) {
+        setStatus(data.error ?? "Save failed");
+        return;
+      }
+      setStatus("Saved");
+      await loadPlugins();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function runPlugin(pluginId: string) {
+    setBusy(true);
+    setStatus(null);
+    try {
+      const res = await fetch(
+        `/api/servers/${guildId}/plugins/${pluginId}/run`,
+        { method: "POST" },
+      );
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setStatus(data.error ?? "Run failed");
+        return;
+      }
+      setStatus("Run started");
     } finally {
       setBusy(false);
     }
@@ -142,6 +240,7 @@ export function PluginsPanel({ guildId }: PluginsPanelProps) {
           <TableHeader>
             <TableRow>
               <TableHead>Display name</TableHead>
+              <TableHead>Folder</TableHead>
               <TableHead>Lifetime</TableHead>
               <TableHead>Subscribed events</TableHead>
               <TableHead>Status</TableHead>
@@ -151,7 +250,7 @@ export function PluginsPanel({ guildId }: PluginsPanelProps) {
           <TableBody>
             {scan.plugins.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-muted-foreground">
+                <TableCell colSpan={6} className="text-muted-foreground">
                   No plugins found.
                 </TableCell>
               </TableRow>
@@ -161,7 +260,10 @@ export function PluginsPanel({ guildId }: PluginsPanelProps) {
                   <TableCell className="font-medium">
                     {plugin.status === "ok"
                       ? (plugin.displayName ?? plugin.pluginId ?? "—")
-                      : "—"}
+                      : errorRowLabel(plugin)}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {plugin.directoryName}
                   </TableCell>
                   <TableCell>{plugin.lifetime ?? "—"}</TableCell>
                   <TableCell className="max-w-[14rem] whitespace-normal text-xs sm:max-w-md sm:text-sm">
@@ -188,6 +290,129 @@ export function PluginsPanel({ guildId }: PluginsPanelProps) {
             )}
           </TableBody>
         </Table>
+      </div>
+
+      <div className="space-y-3 rounded-sm border p-3" data-testid="plugin-config">
+        <Label htmlFor="plugin-select">Configure plugin</Label>
+        <select
+          id="plugin-select"
+          className="h-9 w-full rounded-sm border bg-background px-2 text-sm"
+          value={selectedPluginId ?? ""}
+          onChange={(event) =>
+            setSelectedPluginId(event.target.value || null)
+          }
+        >
+          <option value="">Select a plugin</option>
+          {scan.plugins
+            .filter((plugin) => plugin.status === "ok" && plugin.pluginId)
+            .map((plugin) => (
+              <option key={plugin.pluginId!} value={plugin.pluginId!}>
+                {plugin.displayName ?? plugin.pluginId}
+              </option>
+            ))}
+        </select>
+
+        {selectedPlugin?.pluginId ? (
+          <div className="space-y-4">
+            {selectedPlugin.environment.length > 0 ? (
+              <div className="space-y-3">
+                {selectedPlugin.environment.map((field) => (
+                  <div key={field.key} className="space-y-1">
+                    <Label htmlFor={`env-${field.key}`}>
+                      {field.key}
+                      {field.required ? " *" : ""}
+                    </Label>
+                    <Input
+                      id={`env-${field.key}`}
+                      className="rounded-sm"
+                      type={field.secret ? "password" : "text"}
+                      placeholder={
+                        field.secret
+                          ? field.hasSecretValue
+                            ? "Saved (enter to replace)"
+                            : "Secret value"
+                          : undefined
+                      }
+                      value={
+                        field.secret
+                          ? (draftValues[field.key] ?? "")
+                          : (draftValues[field.key] ?? field.value ?? "")
+                      }
+                      onChange={(event) =>
+                        setDraftValues((prev) => ({
+                          ...prev,
+                          [field.key]: event.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No environment keys declared.
+              </p>
+            )}
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="plugin-enabled"
+                  checked={selectedPlugin.enabled}
+                  disabled={!selectedPlugin.canEnable && !selectedPlugin.enabled}
+                  onCheckedChange={(checked) =>
+                    void savePluginConfig({
+                      pluginId: selectedPlugin.pluginId!,
+                      enabled: checked,
+                    })
+                  }
+                />
+                <Label htmlFor="plugin-enabled">Enabled</Label>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="rounded-sm"
+                  disabled={busy}
+                  onClick={() => {
+                    const values: Record<string, string | null> = {};
+                    for (const field of selectedPlugin.environment) {
+                      const draft = draftValues[field.key];
+                      if (field.secret) {
+                        if (draft !== undefined && draft !== "") {
+                          values[field.key] = draft;
+                        }
+                        continue;
+                      }
+                      values[field.key] =
+                        draft === undefined || draft === "" ? null : draft;
+                    }
+                    void savePluginConfig({
+                      pluginId: selectedPlugin.pluginId!,
+                      values,
+                    });
+                  }}
+                >
+                  Save values
+                </Button>
+                {selectedPlugin.canRunNow ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="rounded-sm"
+                    disabled={busy}
+                    data-testid="run-plugin-now"
+                    onClick={() => void runPlugin(selectedPlugin.pluginId!)}
+                  >
+                    Run now
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );

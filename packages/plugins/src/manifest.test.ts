@@ -12,6 +12,7 @@ describe("parsePluginManifest", () => {
       subscribedEvents: ["member.join"],
       command: ["node", "index.js"],
       environment: [],
+      invocationTimeLimitMs: null,
     });
   });
 

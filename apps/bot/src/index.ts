@@ -13,8 +13,11 @@ import {
 } from "@maia/db";
 import { commandsByName } from "./commands/index.js";
 import { isUserFacingError } from "./lib/errors.js";
+import { createPluginApiServer } from "./plugins/plugin-api-server.js";
 import { startPluginRefreshLoop } from "./plugins/refresh-loop.js";
 import { runPluginScan } from "./plugins/run-scan.js";
+import { startPluginRuntimeLoop } from "./plugins/runtime-loop.js";
+import { PluginTokenRegistry } from "./plugins/token-registry.js";
 
 const token = process.env.DISCORD_TOKEN;
 if (!token) {
@@ -126,9 +129,33 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
+function resolvePluginApiPort(): number {
+  const raw = process.env.MAIA_PLUGIN_API_PORT ?? "3847";
+  const port = Number.parseInt(raw, 10);
+  if (!Number.isInteger(port) || port <= 0) {
+    throw new Error("MAIA_PLUGIN_API_PORT must be a positive integer");
+  }
+  return port;
+}
+
 async function bootstrap() {
   await runPluginScan(db, "startup");
   startPluginRefreshLoop(db);
+
+  const tokenRegistry = new PluginTokenRegistry();
+  const pluginApi = createPluginApiServer({
+    port: resolvePluginApiPort(),
+    tokenRegistry,
+  });
+  await pluginApi.listen();
+  console.log(`Plugin API listening on ${pluginApi.url()}`);
+
+  startPluginRuntimeLoop(db, {
+    tokenRegistry,
+    pluginApiUrl: pluginApi.url(),
+    log: (line) => console.log(line),
+  });
+
   await client.login(token);
 }
 

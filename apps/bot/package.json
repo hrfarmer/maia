@@ -8,7 +8,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
-    "deploy-commands": "tsx src/deploy-commands.ts"
+    "deploy-commands": "tsx src/deploy-commands.ts",
+    "test": "node --import tsx --test src/plugins/plugin-api-server.test.ts src/plugins/token-registry.test.ts src/plugins/plugin-run-audit.test.ts src/plugins/run-scan.test.ts"
   },
   "dependencies": {
     "@maia/db": "workspace:*",

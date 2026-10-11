@@ -98,6 +98,10 @@ export const devPluginScan = {
       lifetime: "invocation",
       subscribedEvents: ["role.update"],
       errorMessage: null,
+      environment: [
+        { key: "WEBHOOK_URL", required: true, secret: false },
+        { key: "API_SECRET", required: true, secret: true },
+      ],
     },
     {
       id: "dev-plugin-error",
@@ -115,3 +119,63 @@ export const devPluginScan = {
 export function devHelpersEnabled() {
   return process.env.MAIA_ENABLE_DEV_HELPERS === "1";
 }
+
+export const devGuildPlugins = [
+  {
+    id: "dev-plugin-always-on",
+    directoryName: "welcome-bot",
+    status: "ok" as const,
+    pluginId: "welcome-bot",
+    displayName: "Welcome bot",
+    lifetime: "always-on",
+    subscribedEvents: ["member.join"],
+    errorMessage: null,
+    environment: [],
+    enabled: false,
+    canEnable: true,
+    canRunNow: false,
+  },
+  {
+    id: "dev-plugin-invocation",
+    directoryName: "role-sync",
+    status: "ok" as const,
+    pluginId: "role-sync",
+    displayName: "Role sync",
+    lifetime: "invocation",
+    subscribedEvents: ["role.update"],
+    errorMessage: null,
+    environment: [
+      {
+        key: "WEBHOOK_URL",
+        required: true,
+        secret: false,
+        value: "https://example.com/hook",
+        hasSecretValue: false,
+      },
+      {
+        key: "API_SECRET",
+        required: true,
+        secret: true,
+        value: null,
+        hasSecretValue: true,
+      },
+    ],
+    enabled: true,
+    canEnable: true,
+    canRunNow: true,
+  },
+  {
+    id: "dev-plugin-error",
+    directoryName: "broken",
+    status: "error" as const,
+    pluginId: null,
+    displayName: null,
+    lifetime: null,
+    subscribedEvents: [],
+    errorMessage: "Missing maia-plugin.json",
+    environment: [],
+    enabled: false,
+    canEnable: false,
+    canRunNow: false,
+  },
+];
