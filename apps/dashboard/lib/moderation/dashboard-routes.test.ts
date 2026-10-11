@@ -100,6 +100,7 @@ describe("dashboard moderation API routes", () => {
       }),
       { params: Promise.resolve({ guildId: MOCK_GUILD_ID }) },
     );
+    assert.ok(response);
     assert.equal(response.status, 201);
     const body = (await response.json()) as { ok: boolean };
     assert.equal(body.ok, true);
@@ -130,6 +131,7 @@ describe("dashboard moderation API routes", () => {
         }),
       },
     );
+    assert.ok(addResponse);
     assert.equal(addResponse.status, 200);
     const addAudit = auditEntries.find((entry) => entry.action === "role.add");
     assert.ok(addAudit);
@@ -149,6 +151,7 @@ describe("dashboard moderation API routes", () => {
         }),
       },
     );
+    assert.ok(removeResponse);
     assert.equal(removeResponse.status, 200);
     const removeAudit = auditEntries.find(
       (entry) => entry.action === "role.remove",
@@ -196,6 +199,7 @@ describe("dashboard moderation API routes", () => {
         }),
       },
     );
+    assert.ok(response);
     assert.equal(response.status, 200);
     const body = (await response.json()) as { ok: boolean };
     assert.equal(body.ok, true);
