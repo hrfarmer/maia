@@ -26,7 +26,6 @@ export class PluginTokenRegistry {
   }
 
   mintAlwaysOnToken(pluginId: string): string {
-    this.revokeAlwaysOnTokensForPlugin(pluginId);
     const token = `${TOKEN_PREFIX}${randomBytes(24).toString("base64url")}`;
     this.byToken.set(token, {
       token,

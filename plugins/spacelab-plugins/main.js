@@ -47,9 +47,12 @@ async function runCycleForGuild(guildId, options = {}) {
       graph,
       forceFullPass: options.forceFullPass === true,
     });
-    process.stdout.write(
-      `${JSON.stringify({ guildId, cycle: result })}\n`,
-    );
+    const cycleLog = { ...result };
+    if (result.notRosterReason) {
+      cycleLog.not_roster = result.notRosterReason;
+      delete cycleLog.notRosterReason;
+    }
+    process.stdout.write(`${JSON.stringify({ guildId, cycle: cycleLog })}\n`);
   } catch (error) {
     process.stdout.write(
       `${JSON.stringify({

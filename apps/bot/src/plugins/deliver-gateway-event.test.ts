@@ -9,6 +9,30 @@ import {
 import { executePluginEventRun } from "./execute-event-run.js";
 import { PluginEventInvocationConcurrency } from "./event-invocation-concurrency.js";
 import { PluginTokenRegistry } from "./token-registry.js";
+import type { SupervisedPluginProcessHandle } from "@maia/plugins";
+
+function mockSupervisedHandle(input?: {
+  writeStdin?: (line: string) => void;
+}): SupervisedPluginProcessHandle {
+  let resolveExit:
+    | ((value: { exitCode: number | null; signal: NodeJS.Signals | null }) => void)
+    | undefined;
+  const exitPromise = new Promise<{
+    exitCode: number | null;
+    signal: NodeJS.Signals | null;
+  }>((resolve) => {
+    resolveExit = resolve;
+  });
+  return {
+    writeStdin(line: string) {
+      input?.writeStdin?.(line);
+    },
+    kill() {
+      resolveExit?.({ exitCode: 0, signal: "SIGTERM" });
+    },
+    waitForExit: () => exitPromise,
+  };
+}
 
 function invocationPlugin(
   overrides: Partial<LatestRunnablePlugin> = {},
@@ -52,13 +76,12 @@ describe("deliverAlwaysOnGatewayEvent", () => {
       listAlwaysOnPlugins: async () => [
         alwaysOnPlugin({ subscribedEvents: ["message.created"] }),
       ],
-      spawnSupervised: () => ({
-        writeStdin(line: string) {
-          stdinLines.push(line);
-        },
-        kill() {},
-        waitForExit: () => new Promise(() => {}),
-      }),
+      spawnSupervised: () =>
+        mockSupervisedHandle({
+          writeStdin(line: string) {
+            stdinLines.push(line);
+          },
+        }),
     });
     await supervisor.syncFromLatestScan({ restartExisting: false });
 
@@ -112,11 +135,7 @@ describe("deliverAlwaysOnGatewayEvent", () => {
         tokenRegistry: new PluginTokenRegistry(),
         pluginApiUrl: "http://127.0.0.1:3847",
         listAlwaysOnPlugins: async () => [],
-        spawnSupervised: () => ({
-          writeStdin() {},
-          kill() {},
-          waitForExit: () => new Promise(() => {}),
-        }),
+        spawnSupervised: () => mockSupervisedHandle(),
       }),
       getPlugins: async () =>
         new Map([
@@ -147,13 +166,12 @@ describe("deliverAlwaysOnGatewayEvent", () => {
       tokenRegistry: new PluginTokenRegistry(),
       pluginApiUrl: "http://127.0.0.1:3847",
       listAlwaysOnPlugins: async () => [],
-      spawnSupervised: () => ({
-        writeStdin(line: string) {
-          stdinLines.push(line);
-        },
-        kill() {},
-        waitForExit: () => new Promise(() => {}),
-      }),
+      spawnSupervised: () =>
+        mockSupervisedHandle({
+          writeStdin(line: string) {
+            stdinLines.push(line);
+          },
+        }),
     });
 
     await deliverAlwaysOnGatewayEvent({
@@ -198,11 +216,7 @@ describe("deliverMemberRoleGatewayEvent", () => {
         tokenRegistry: new PluginTokenRegistry(),
         pluginApiUrl: "http://127.0.0.1:3847",
         listAlwaysOnPlugins: async () => [],
-        spawnSupervised: () => ({
-          writeStdin() {},
-          kill() {},
-          waitForExit: () => new Promise(() => {}),
-        }),
+        spawnSupervised: () => mockSupervisedHandle(),
       }),
       tokenRegistry: new PluginTokenRegistry(),
       pluginApiUrl: "http://127.0.0.1:3847",
@@ -228,13 +242,12 @@ describe("deliverMemberRoleGatewayEvent", () => {
       tokenRegistry: new PluginTokenRegistry(),
       pluginApiUrl: "http://127.0.0.1:3847",
       listAlwaysOnPlugins: async () => [alwaysOnPlugin()],
-      spawnSupervised: () => ({
-        writeStdin(line: string) {
-          stdinLines.push(line);
-        },
-        kill() {},
-        waitForExit: () => new Promise(() => {}),
-      }),
+      spawnSupervised: () =>
+        mockSupervisedHandle({
+          writeStdin(line: string) {
+            stdinLines.push(line);
+          },
+        }),
     });
     await supervisor.syncFromLatestScan({ restartExisting: false });
 
@@ -277,11 +290,7 @@ describe("deliverMemberRoleGatewayEvent", () => {
         tokenRegistry: new PluginTokenRegistry(),
         pluginApiUrl: "http://127.0.0.1:3847",
         listAlwaysOnPlugins: async () => [],
-        spawnSupervised: () => ({
-          writeStdin() {},
-          kill() {},
-          waitForExit: () => new Promise(() => {}),
-        }),
+        spawnSupervised: () => mockSupervisedHandle(),
       }),
       tokenRegistry: new PluginTokenRegistry(),
       pluginApiUrl: "http://127.0.0.1:3847",
@@ -326,11 +335,7 @@ describe("deliverMemberRoleGatewayEvent", () => {
         tokenRegistry: new PluginTokenRegistry(),
         pluginApiUrl: "http://127.0.0.1:3847",
         listAlwaysOnPlugins: async () => [],
-        spawnSupervised: () => ({
-          writeStdin() {},
-          kill() {},
-          waitForExit: () => new Promise(() => {}),
-        }),
+        spawnSupervised: () => mockSupervisedHandle(),
       }),
       tokenRegistry: new PluginTokenRegistry(),
       pluginApiUrl: "http://127.0.0.1:3847",

@@ -1,4 +1,8 @@
-import { isLabRosterExportMessage, parseLabRosterMessage } from "./parse.js";
+import {
+  isLabRosterExportMessage,
+  labRosterNotRecognizedReason,
+  parseLabRosterMessage,
+} from "./parse.js";
 import type { GraphMailboxClient, GraphMailboxMessage } from "./graph-mailbox.js";
 import {
   fetchGuildMailboxAccessToken,
@@ -20,6 +24,7 @@ export interface RunSpacelabGuildCycleResult {
     | "no_roster_column"
     | "unparseable_roster"
     | "no_new_roster";
+  notRosterReason?: string;
   archivedMessageIds?: string[];
 }
 
@@ -38,6 +43,29 @@ function rosterMessagesInInbox(
       isLabRosterExportMessage(message.bodyContent, rosterColumn),
     ),
   );
+}
+
+function newestInboxMessage(
+  messages: GraphMailboxMessage[],
+): GraphMailboxMessage | undefined {
+  return sortRosterMessages(messages)[0];
+}
+
+function diagnoseNewestNonRosterInboxMessage(
+  messages: GraphMailboxMessage[],
+  rosterColumn: string,
+): string | undefined {
+  if (messages.length === 0) {
+    return undefined;
+  }
+  const newest = newestInboxMessage(messages);
+  if (!newest) {
+    return undefined;
+  }
+  if (isLabRosterExportMessage(newest.bodyContent, rosterColumn)) {
+    return undefined;
+  }
+  return labRosterNotRecognizedReason(newest.bodyContent, rosterColumn) ?? "not_roster";
 }
 
 async function archiveMessages(
@@ -130,6 +158,10 @@ export async function runSpacelabGuildCycle(input: {
     newestRoster!.id !== cycleState.lastParsedMessageId;
 
   if (!hasNewRoster) {
+    const notRosterReason =
+      rosterMessages.length === 0
+        ? diagnoseNewestNonRosterInboxMessage(inboxMessages, rosterColumn)
+        : undefined;
     if (input.forceFullPass || linksRevisionChanged) {
       const mode: SpacelabReconcilePassMode = { kind: "full" };
       await runSpacelabGuildReconcile(config, mode);
@@ -137,12 +169,12 @@ export async function runSpacelabGuildCycle(input: {
         lastError: null,
         lastProcessedAdaptLinksRevision: cycleState.adaptLinksRevision,
       });
-      return { ok: true, skippedReason: "no_new_roster" };
+      return { ok: true, skippedReason: "no_new_roster", notRosterReason };
     }
 
     await runSpacelabGuildReconcile(config, { kind: "retry-failures-only" });
     await recordCycleEnd(config, { lastError: null });
-    return { ok: true, skippedReason: "no_new_roster" };
+    return { ok: true, skippedReason: "no_new_roster", notRosterReason };
   }
 
   const parsed = parseLabRosterMessage(newestRoster!.bodyContent, rosterColumn);

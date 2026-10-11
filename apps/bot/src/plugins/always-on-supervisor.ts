@@ -134,9 +134,13 @@ export class AlwaysOnSupervisor {
       return;
     }
     managed.stopping = true;
-    this.tokenRegistry.revokeAlwaysOnTokensForPlugin(pluginId);
-    managed.handle.kill("SIGTERM");
     this.processes.delete(pluginId);
+    managed.handle.kill("SIGTERM");
+    await managed.handle.waitForExit().catch(() => ({
+      exitCode: null,
+      signal: null,
+    }));
+    this.tokenRegistry.revoke(managed.token);
   }
 
   private async handleUnexpectedExit(pluginId: string) {
@@ -144,8 +148,9 @@ export class AlwaysOnSupervisor {
     if (!managed || managed.stopping) {
       return;
     }
+    const token = managed.token;
     this.processes.delete(pluginId);
-    this.tokenRegistry.revokeAlwaysOnTokensForPlugin(pluginId);
+    this.tokenRegistry.revoke(token);
 
     const alwaysOn = await this.listAlwaysOnPlugins();
     const plugin = alwaysOn.find((entry) => entry.pluginId === pluginId);

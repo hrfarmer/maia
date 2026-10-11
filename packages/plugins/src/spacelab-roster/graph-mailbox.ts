@@ -49,7 +49,12 @@ export function createGraphMailboxClient(input: {
     async listInboxMessages(accessToken) {
       const response = await fetchImpl(
         `${baseUrl}/me/mailFolders/inbox/messages?$select=id,receivedDateTime,body&$top=100`,
-        { headers: { Authorization: `Bearer ${accessToken}` } },
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Prefer: 'outlook.body-content-type="text"',
+          },
+        },
       );
       if (!response.ok) {
         throw new Error(`graph_list_inbox_failed:${response.status}`);
