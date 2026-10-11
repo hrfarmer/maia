@@ -48,6 +48,14 @@ export {
 } from "./slash-commands.js";
 export { resolvePluginsDirectory } from "./paths.js";
 export {
+  SPACELAB_PLUGINS_DIRECTORY_NAME,
+  SPACELAB_ROSTER_PLUGIN_ID,
+  resolveShippedSpacelabPluginsSource,
+  syncShippedSpacelabPlugin,
+  type SyncShippedSpacelabPluginResult,
+  type SyncShippedSpacelabPluginOptions,
+} from "./shipped-spacelab-sync.js";
+export {
   cronMatchesUtcMinute,
   isValidCronExpression,
   utcMinuteStart,
