@@ -27,6 +27,8 @@ export {
 } from "./cron.js";
 export { dueCronTargets, type PluginCronTarget } from "./cron-schedule.js";
 export {
+  buildAlwaysOnGuildConfigStdin,
+  buildAlwaysOnPluginProcessEnvironment,
   buildCronInvocationStdin,
   buildInvocationStdin,
   buildManualInvocationStdin,
@@ -36,11 +38,18 @@ export {
   shouldDisableAfterValueChange,
   MAIA_PLUGIN_TOKEN_ENV,
   MAIA_PLUGIN_URL_ENV,
+  type AlwaysOnGuildConfigChange,
+  type AlwaysOnGuildConfigStdin,
   type GuildPluginValueMap,
   type CronInvocationStdin,
   type ManualInvocationStdin,
   type PluginRunTrigger,
 } from "./guild-config.js";
+export {
+  spawnSupervisedPluginProcess,
+  type SpawnSupervisedPluginProcessInput,
+  type SupervisedPluginProcessHandle,
+} from "./supervised-process.js";
 export {
   runPluginProcess,
   type ProcessLogSink,

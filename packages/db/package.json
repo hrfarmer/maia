@@ -16,7 +16,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "generate": "drizzle-kit generate",
     "migrate": "tsx src/migrate.ts",
-    "test": "node --import tsx --test src/plugins.test.ts src/guild-plugins-logic.test.ts"
+    "test": "node --import tsx --test src/plugins.test.ts src/guild-plugins-logic.test.ts src/plugin-guild-notifications.test.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.39.3",

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { planAlwaysOnConfigNotifications } from "./always-on-notify.js";
 import {
   applyGuildPluginValuePatch,
   buildGuildPluginEnvironmentFields,
@@ -115,5 +116,35 @@ describe("guild plugin view", () => {
     });
     assert.equal(result.enabled, false);
     assert.equal(result.values.has("WEBHOOK_URL"), false);
+  });
+
+  it("plans always-on stdin notifications without restarting the process", () => {
+    assert.deepEqual(
+      planAlwaysOnConfigNotifications({
+        lifetime: "always-on",
+        previousEnabled: false,
+        nextEnabled: true,
+        valuesChanged: true,
+      }),
+      ["enabled"],
+    );
+    assert.deepEqual(
+      planAlwaysOnConfigNotifications({
+        lifetime: "always-on",
+        previousEnabled: true,
+        nextEnabled: true,
+        valuesChanged: true,
+      }),
+      ["values_saved"],
+    );
+    assert.deepEqual(
+      planAlwaysOnConfigNotifications({
+        lifetime: "invocation",
+        previousEnabled: false,
+        nextEnabled: true,
+        valuesChanged: true,
+      }),
+      [],
+    );
   });
 });

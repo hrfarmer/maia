@@ -165,6 +165,28 @@ export const pluginRunRequests = pgTable(
   ],
 );
 
+export const pluginGuildConfigNotifications = pgTable(
+  "plugin_guild_config_notifications",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    pluginId: text("plugin_id").notNull(),
+    guildId: varchar("guild_id", { length: 20 })
+      .notNull()
+      .references(() => guilds.id, { onDelete: "cascade" }),
+    changeType: varchar("change_type", { length: 32 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("plugin_guild_config_notifications_pending_idx").on(
+      table.deliveredAt,
+      table.createdAt,
+    ),
+  ],
+);
+
 export const botRuntimeState = pgTable("bot_runtime_state", {
   id: varchar("id", { length: 32 }).primaryKey(),
   pluginRefreshRequestedAt: timestamp("plugin_refresh_requested_at", {

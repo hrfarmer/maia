@@ -7,7 +7,11 @@ import {
   type PluginScanTrigger,
 } from "@maia/db";
 
-export async function runPluginScan(db: Db, trigger: PluginScanTrigger) {
+export async function runPluginScan(
+  db: Db,
+  trigger: PluginScanTrigger,
+  hooks?: { afterScan?: () => Promise<void> },
+) {
   try {
     const discovered = await discoverPlugins();
     const activePluginIds = discovered
@@ -41,5 +45,9 @@ export async function runPluginScan(db: Db, trigger: PluginScanTrigger) {
 
   if (trigger === "refresh") {
     await clearPluginRefreshRequest(db);
+  }
+
+  if (hooks?.afterScan) {
+    await hooks.afterScan();
   }
 }

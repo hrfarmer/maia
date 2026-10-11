@@ -13,4 +13,9 @@ describe("runPluginScan guild config cleanup", () => {
       /guildPluginSettings/,
     );
   });
+
+  it("accepts afterScan hooks used to restart always-on plugins on refresh", async () => {
+    const { runPluginScan } = await import("./run-scan.js");
+    assert.equal(runPluginScan.length, 3);
+  });
 });

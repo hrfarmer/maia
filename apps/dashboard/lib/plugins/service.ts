@@ -5,7 +5,9 @@ import {
 } from "@maia/plugins";
 import {
   deleteGuildPluginEnvValue,
+  enqueuePluginGuildConfigNotification,
   enqueuePluginRun,
+  getGuildPluginSettings,
   getLatestPluginScan,
   listGuildPluginEnvValuesForGuild,
   listGuildPluginSettingsForGuild,
@@ -14,6 +16,7 @@ import {
   upsertGuildPluginEnvValue,
   type Db,
 } from "@maia/db";
+import { planAlwaysOnConfigNotifications } from "./always-on-notify";
 import { applyGuildPluginValuePatch, mergeGuildPluginRow } from "./guild-view";
 
 export async function getGuildPluginsView(db: Db, guildId: string) {
@@ -87,6 +90,8 @@ export async function updateGuildPluginConfig(
   }
 
   const environment = (discovered.environment ?? []) as PluginEnvironmentKey[];
+  const previousSettings = await getGuildPluginSettings(db, guildId, pluginId);
+  const previousEnabled = previousSettings?.enabled ?? false;
   const existingRows = await listGuildPluginEnvValuesForGuild(db, guildId);
   const existingValues = new Map<string, string>();
   for (const row of existingRows) {
@@ -94,6 +99,7 @@ export async function updateGuildPluginConfig(
       existingValues.set(row.envKey, row.value);
     }
   }
+  let valuesChanged = false;
 
   const { values, enabled } = applyGuildPluginValuePatch({
     environment,
@@ -132,12 +138,16 @@ export async function updateGuildPluginConfig(
     }
     if (next === undefined) {
       if (prev !== undefined) {
+        valuesChanged = true;
         await deleteGuildPluginEnvValue(db, guildId, pluginId, entry.key);
       }
       continue;
     }
     if (entry.secret && next === prev) {
       continue;
+    }
+    if (next !== prev) {
+      valuesChanged = true;
     }
     await upsertGuildPluginEnvValue(db, {
       guildId,
@@ -148,6 +158,19 @@ export async function updateGuildPluginConfig(
   }
 
   await setGuildPluginEnabled(db, guildId, pluginId, enabled);
+
+  for (const changeType of planAlwaysOnConfigNotifications({
+    lifetime: discovered.lifetime,
+    previousEnabled,
+    nextEnabled: enabled,
+    valuesChanged,
+  })) {
+    await enqueuePluginGuildConfigNotification(db, {
+      pluginId,
+      guildId,
+      changeType,
+    });
+  }
 
   return { ok: true as const };
 }
