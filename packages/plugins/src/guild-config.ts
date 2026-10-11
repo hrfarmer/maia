@@ -49,6 +49,34 @@ export function buildPluginProcessEnvironment(input: {
   return env;
 }
 
+export function buildAlwaysOnPluginProcessEnvironment(input: {
+  pluginToken: string;
+  pluginUrl: string;
+}): Record<string, string> {
+  return {
+    [MAIA_PLUGIN_TOKEN_ENV]: input.pluginToken,
+    [MAIA_PLUGIN_URL_ENV]: input.pluginUrl,
+  };
+}
+
+export type AlwaysOnGuildConfigChange =
+  | "enabled"
+  | "disabled"
+  | "values_saved";
+
+export interface AlwaysOnGuildConfigStdin {
+  guildId: string;
+  change: AlwaysOnGuildConfigChange;
+}
+
+export function buildAlwaysOnGuildConfigStdin(
+  guildId: string,
+  change: AlwaysOnGuildConfigChange,
+): string {
+  const payload: AlwaysOnGuildConfigStdin = { guildId, change };
+  return `${JSON.stringify(payload)}\n`;
+}
+
 export type PluginRunTrigger = "run_now" | "cron";
 
 export interface ManualInvocationStdin {

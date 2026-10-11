@@ -13,6 +13,8 @@ import {
 } from "@maia/db";
 import { commandsByName } from "./commands/index.js";
 import { isUserFacingError } from "./lib/errors.js";
+import { AlwaysOnSupervisor } from "./plugins/always-on-supervisor.js";
+import { startPluginConfigNotifyLoop } from "./plugins/config-notify-loop.js";
 import { createPluginApiServer } from "./plugins/plugin-api-server.js";
 import { startPluginRefreshLoop } from "./plugins/refresh-loop.js";
 import { runPluginScan } from "./plugins/run-scan.js";
@@ -140,16 +142,35 @@ function resolvePluginApiPort(): number {
 }
 
 async function bootstrap() {
-  await runPluginScan(db, "startup");
-  startPluginRefreshLoop(db);
-
   const tokenRegistry = new PluginTokenRegistry();
   const pluginApi = createPluginApiServer({
     port: resolvePluginApiPort(),
     tokenRegistry,
+    db,
   });
   await pluginApi.listen();
   console.log(`Plugin API listening on ${pluginApi.url()}`);
+
+  const alwaysOnSupervisor = new AlwaysOnSupervisor({
+    db,
+    tokenRegistry,
+    pluginApiUrl: pluginApi.url(),
+    log: (line) => console.log(line),
+  });
+
+  await runPluginScan(db, "startup", {
+    afterScan: async () => {
+      await alwaysOnSupervisor.syncFromLatestScan({ restartExisting: false });
+    },
+  });
+
+  startPluginRefreshLoop(db, {
+    afterRefreshScan: async () => {
+      await alwaysOnSupervisor.syncFromLatestScan({ restartExisting: true });
+    },
+  });
+
+  startPluginConfigNotifyLoop(db, alwaysOnSupervisor);
 
   startPluginRuntimeLoop(db, {
     tokenRegistry,

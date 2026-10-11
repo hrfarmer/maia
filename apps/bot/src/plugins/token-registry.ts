@@ -26,6 +26,7 @@ export class PluginTokenRegistry {
   }
 
   mintAlwaysOnToken(pluginId: string): string {
+    this.revokeAlwaysOnTokensForPlugin(pluginId);
     const token = `${TOKEN_PREFIX}${randomBytes(24).toString("base64url")}`;
     this.byToken.set(token, {
       token,
@@ -34,6 +35,14 @@ export class PluginTokenRegistry {
       kind: "always-on",
     });
     return token;
+  }
+
+  revokeAlwaysOnTokensForPlugin(pluginId: string) {
+    for (const [token, entry] of this.byToken) {
+      if (entry.kind === "always-on" && entry.pluginId === pluginId) {
+        this.byToken.delete(token);
+      }
+    }
   }
 
   revoke(token: string) {
@@ -52,6 +61,6 @@ export class PluginTokenRegistry {
     if (entry.kind === "invocation") {
       return entry.guildId === guildId ? entry : null;
     }
-    return entry;
+    return entry.pluginId.length > 0 ? entry : null;
   }
 }

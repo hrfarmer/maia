@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  buildAlwaysOnGuildConfigStdin,
+  buildAlwaysOnPluginProcessEnvironment,
   buildCronInvocationStdin,
   buildInvocationStdin,
   buildManualInvocationStdin,
@@ -75,6 +77,30 @@ describe("plugin process contract", () => {
     assert.equal(
       buildInvocationStdin("123", "cron"),
       '{"guildId":"123","trigger":"cron"}\n',
+    );
+  });
+
+  it("builds always-on env with only maia vars", () => {
+    assert.deepEqual(
+      buildAlwaysOnPluginProcessEnvironment({
+        pluginToken: "mplg_ao",
+        pluginUrl: "http://127.0.0.1:3847",
+      }),
+      {
+        MAIA_PLUGIN_TOKEN: "mplg_ao",
+        MAIA_PLUGIN_URL: "http://127.0.0.1:3847",
+      },
+    );
+  });
+
+  it("writes always-on guild config stdin without guild values", () => {
+    assert.equal(
+      buildAlwaysOnGuildConfigStdin("999", "values_saved"),
+      '{"guildId":"999","change":"values_saved"}\n',
+    );
+    assert.doesNotMatch(
+      buildAlwaysOnGuildConfigStdin("999", "enabled"),
+      /WEBHOOK|secret|value/i,
     );
   });
 });

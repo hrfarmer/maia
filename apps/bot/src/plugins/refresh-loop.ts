@@ -8,7 +8,10 @@ import { runPluginScan } from "./run-scan.js";
 
 const REFRESH_POLL_MS = 2_000;
 
-export function startPluginRefreshLoop(db: Db) {
+export function startPluginRefreshLoop(
+  db: Db,
+  hooks?: { afterRefreshScan?: () => Promise<void> },
+) {
   const timer = setInterval(() => {
     void (async () => {
       const [requestedAt, latestScan] = await Promise.all([
@@ -22,7 +25,9 @@ export function startPluginRefreshLoop(db: Db) {
       if (!pending) {
         return;
       }
-      await runPluginScan(db, "refresh");
+      await runPluginScan(db, "refresh", {
+        afterScan: hooks?.afterRefreshScan,
+      });
     })().catch((error) => {
       console.error("Plugin refresh scan failed", error);
     });
