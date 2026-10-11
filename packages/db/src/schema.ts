@@ -297,6 +297,9 @@ export type AuditAction =
   | "member.untimeout"
   | "member.nickname"
   | "message.send"
+  | "message.delete"
+  | "message.reaction.add"
+  | "message.reaction.remove"
   | "custom_command.create"
   | "custom_command.update"
   | "custom_command.delete";

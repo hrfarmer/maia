@@ -9,6 +9,8 @@ import { apiKeyAuditActor } from "../api/auth-utils.js";
 
 const CHANNEL_ID = "200000000000000010";
 const REPLY_ID = "300000000000000099";
+const MESSAGE_ID = "300000000000000099";
+const OTHER_USER = "200000000000000002";
 
 interface CapturedAudit {
   source: string;
@@ -54,13 +56,23 @@ describe("external /api/v1 message routes", () => {
   before(() => {
     process.env.DISCORD_TOKEN = "test-bot-token";
     restoreFetch = installDiscordFetchMock({
-      everyonePermissions: Permission.ViewChannel | Permission.SendMessages,
+      everyonePermissions:
+        Permission.ViewChannel |
+        Permission.SendMessages |
+        Permission.ReadMessageHistory |
+        Permission.AddReactions |
+        Permission.ManageMessages,
       channels: [{ id: CHANNEL_ID, type: 0, name: "general" }],
       onCreateMessage: (body) => {
         assert.equal(body.content, "Hello");
         assert.equal(body.message_reference?.message_id, REPLY_ID);
         return { id: "400000000000000020", content: body.content };
       },
+      onFetchMessage: (_channelId, messageId) => ({
+        id: messageId,
+        content: "Hello",
+        author: { id: OTHER_USER },
+      }),
     });
   });
 
@@ -109,5 +121,111 @@ describe("external /api/v1 message routes", () => {
     assert.equal(audit!.source, "api");
     assert.equal(audit!.actorLabel, "Notifier");
     assert.equal(audit!.success, true);
+  });
+
+  it("reads recent messages without audit rows", async () => {
+    auditEntries.length = 0;
+    const { GET } = await import(
+      "../../app/api/v1/guilds/[guildId]/channels/[channelId]/messages/route.js"
+    );
+    const response = await GET(
+      new Request(`http://localhost/api?limit=10`),
+      {
+        params: Promise.resolve({
+          guildId: MOCK_GUILD_ID,
+          channelId: CHANNEL_ID,
+        }),
+      },
+    );
+    assert.ok(response);
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as { messages: unknown[] };
+    assert.ok(body.messages.length > 0);
+    assert.equal(auditEntries.length, 0);
+  });
+
+  it("deletes a message with an API key audit actor", async () => {
+    auditEntries.length = 0;
+    const { DELETE } = await import(
+      "../../app/api/v1/guilds/[guildId]/channels/[channelId]/messages/[messageId]/route.js"
+    );
+    const response = await DELETE(new Request("http://localhost/api"), {
+      params: Promise.resolve({
+        guildId: MOCK_GUILD_ID,
+        channelId: CHANNEL_ID,
+        messageId: MESSAGE_ID,
+      }),
+    });
+    assert.ok(response);
+    assert.equal(response.status, 200);
+    const audit = auditEntries.find((entry) => entry.action === "message.delete");
+    assert.ok(audit);
+    assert.equal(audit!.source, "api");
+    assert.equal(audit!.success, true);
+  });
+
+  it("adds and removes bot reactions with audit rows", async () => {
+    auditEntries.length = 0;
+    const emoji = encodeURIComponent("👍");
+    const { PUT, DELETE } = await import(
+      "../../app/api/v1/guilds/[guildId]/channels/[channelId]/messages/[messageId]/reactions/[emoji]/route.js"
+    );
+    const addResponse = await PUT(new Request("http://localhost/api"), {
+      params: Promise.resolve({
+        guildId: MOCK_GUILD_ID,
+        channelId: CHANNEL_ID,
+        messageId: MESSAGE_ID,
+        emoji,
+      }),
+    });
+    assert.ok(addResponse);
+    assert.equal(addResponse.status, 200);
+    const addAudit = auditEntries.find(
+      (entry) => entry.action === "message.reaction.add",
+    );
+    assert.ok(addAudit);
+    assert.equal(addAudit!.success, true);
+
+    const removeResponse = await DELETE(new Request("http://localhost/api"), {
+      params: Promise.resolve({
+        guildId: MOCK_GUILD_ID,
+        channelId: CHANNEL_ID,
+        messageId: MESSAGE_ID,
+        emoji,
+      }),
+    });
+    assert.ok(removeResponse);
+    assert.equal(removeResponse.status, 200);
+    const removeAudit = auditEntries.find(
+      (entry) => entry.action === "message.reaction.remove",
+    );
+    assert.ok(removeAudit);
+    assert.equal(removeAudit!.success, true);
+  });
+
+  it("does not remove another user's reaction", async () => {
+    auditEntries.length = 0;
+    const emoji = encodeURIComponent("👍");
+    const { DELETE } = await import(
+      "../../app/api/v1/guilds/[guildId]/channels/[channelId]/messages/[messageId]/reactions/[emoji]/route.js"
+    );
+    const response = await DELETE(
+      new Request(
+        `http://localhost/api?userId=${OTHER_USER}`,
+      ),
+      {
+        params: Promise.resolve({
+          guildId: MOCK_GUILD_ID,
+          channelId: CHANNEL_ID,
+          messageId: MESSAGE_ID,
+          emoji,
+        }),
+      },
+    );
+    assert.ok(response);
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as { removed: boolean };
+    assert.equal(body.removed, false);
+    assert.equal(auditEntries.length, 0);
   });
 });

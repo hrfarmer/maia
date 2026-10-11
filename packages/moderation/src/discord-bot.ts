@@ -345,3 +345,88 @@ export async function createChannelMessage(
     body: JSON.stringify(payload),
   });
 }
+
+export interface DiscordMessageAuthor {
+  id: string;
+}
+
+export interface DiscordChannelMessage extends DiscordMessage {
+  channel_id?: string;
+  author?: DiscordMessageAuthor;
+}
+
+export async function fetchChannelMessages(
+  channelId: string,
+  limit: number,
+): Promise<DiscordChannelMessage[]> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  return discordFetch<DiscordChannelMessage[]>(
+    `/channels/${channelId}/messages?${params.toString()}`,
+  );
+}
+
+export async function fetchChannelMessage(
+  channelId: string,
+  messageId: string,
+): Promise<DiscordChannelMessage> {
+  return discordFetch<DiscordChannelMessage>(
+    `/channels/${channelId}/messages/${messageId}`,
+  );
+}
+
+export async function deleteChannelMessage(
+  channelId: string,
+  messageId: string,
+  reason?: string,
+) {
+  const headers: Record<string, string> = {};
+  if (reason) {
+    headers["X-Audit-Log-Reason"] = reason.slice(0, 512);
+  }
+  await discordFetch(`/channels/${channelId}/messages/${messageId}`, {
+    method: "DELETE",
+    headers,
+  });
+}
+
+function encodeReactionEmoji(emoji: string): string {
+  return encodeURIComponent(emoji);
+}
+
+export async function addOwnMessageReaction(
+  channelId: string,
+  messageId: string,
+  emoji: string,
+  reason?: string,
+) {
+  const headers: Record<string, string> = {};
+  if (reason) {
+    headers["X-Audit-Log-Reason"] = reason.slice(0, 512);
+  }
+  await discordFetch(
+    `/channels/${channelId}/messages/${messageId}/reactions/${encodeReactionEmoji(emoji)}/@me`,
+    {
+      method: "PUT",
+      headers,
+    },
+  );
+}
+
+export async function removeOwnMessageReaction(
+  channelId: string,
+  messageId: string,
+  emoji: string,
+  reason?: string,
+) {
+  const headers: Record<string, string> = {};
+  if (reason) {
+    headers["X-Audit-Log-Reason"] = reason.slice(0, 512);
+  }
+  await discordFetch(
+    `/channels/${channelId}/messages/${messageId}/reactions/${encodeReactionEmoji(emoji)}/@me`,
+    {
+      method: "DELETE",
+      headers,
+    },
+  );
+}

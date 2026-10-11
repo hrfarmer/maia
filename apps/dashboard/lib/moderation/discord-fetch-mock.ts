@@ -23,6 +23,15 @@ export interface DiscordFetchMockOptions {
     content: string;
     message_reference?: { message_id: string };
   }) => { id: string; content: string };
+  onListMessages?: (channelId: string, limit: number) => Array<{
+    id: string;
+    content: string;
+  }>;
+  onFetchMessage?: (channelId: string, messageId: string) => {
+    id: string;
+    content: string;
+    author: { id: string };
+  };
   everyonePermissions?: bigint;
 }
 
@@ -133,6 +142,15 @@ export function installDiscordFetchMock(options: DiscordFetchMockOptions = {}) {
       return jsonResponse(options.channels ?? []);
     }
     const channelMessageMatch = path.match(/^\/channels\/([^/]+)\/messages$/);
+    if (channelMessageMatch && (init?.method ?? "GET") === "GET") {
+      const channelId = channelMessageMatch[1]!;
+      const limit = Number(new URL(url).searchParams.get("limit") ?? "50");
+      const messages =
+        options.onListMessages?.(channelId, limit) ?? [
+          { id: "300000000000000099", content: "Hello" },
+        ];
+      return jsonResponse(messages);
+    }
     if (channelMessageMatch && init?.method === "POST") {
       const body = JSON.parse(String(init.body ?? "{}")) as {
         content: string;
@@ -143,6 +161,30 @@ export function installDiscordFetchMock(options: DiscordFetchMockOptions = {}) {
         content: body.content,
       };
       return jsonResponse(created, 201);
+    }
+    const channelMessageItemMatch = path.match(
+      /^\/channels\/([^/]+)\/messages\/([^/]+)$/,
+    );
+    if (channelMessageItemMatch) {
+      const channelId = channelMessageItemMatch[1]!;
+      const messageId = channelMessageItemMatch[2]!;
+      if ((init?.method ?? "GET") === "GET") {
+        const message = options.onFetchMessage?.(channelId, messageId) ?? {
+          id: messageId,
+          content: "Hello",
+          author: { id: MOCK_MEMBER_ID },
+        };
+        return jsonResponse(message);
+      }
+      if (init?.method === "DELETE") {
+        return new Response(null, { status: 204 });
+      }
+    }
+    const reactionMatch = path.match(
+      /^\/channels\/([^/]+)\/messages\/([^/]+)\/reactions\/([^/]+)\/@me$/,
+    );
+    if (reactionMatch && (init?.method === "PUT" || init?.method === "DELETE")) {
+      return new Response(null, { status: 204 });
     }
     if (
       path ===

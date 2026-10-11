@@ -73,6 +73,27 @@ function channelIdParam() {
   };
 }
 
+function messageIdParam() {
+  return {
+    name: "messageId",
+    in: "path" as const,
+    required: true,
+    description: "Discord message ID",
+    schema: { type: "string", pattern: snowflakePattern },
+  };
+}
+
+function reactionEmojiParam() {
+  return {
+    name: "emoji",
+    in: "path" as const,
+    required: true,
+    description:
+      "Reaction emoji, URL-encoded (unicode or custom emoji name:id form)",
+    schema: { type: "string", minLength: 1 },
+  };
+}
+
 function operationResponses(extra: Record<string, unknown> = {}) {
   return {
     ...authErrorResponses,
@@ -110,7 +131,8 @@ export function buildOpenApiDocument(serverUrl: string) {
       { name: "Bans", description: "Remove guild bans" },
       {
         name: "Channels",
-        description: "List viewable channels and send plain-text messages",
+        description:
+          "List viewable channels, read recent messages, send plain-text messages, delete messages, and manage bot reactions",
       },
     ],
     security: [{ bearerAuth: [] }],
@@ -135,6 +157,35 @@ export function buildOpenApiDocument(serverUrl: string) {
         },
       },
       [`${basePath}/channels/{channelId}/messages`]: {
+        get: {
+          tags: ["Channels"],
+          summary: "List recent channel messages",
+          description:
+            "Returns up to 100 recent messages from a channel Maia can read. Does not write an audit row.",
+          parameters: [
+            guildIdParam(),
+            channelIdParam(),
+            {
+              name: "limit",
+              in: "query" as const,
+              required: false,
+              description: "Maximum messages to return (1–100, default 50)",
+              schema: { type: "integer", minimum: 1, maximum: 100 },
+            },
+          ],
+          responses: operationResponses({
+            "200": {
+              description: "Recent messages",
+              content: {
+                "application/json": {
+                  schema: {
+                    $ref: "#/components/schemas/MessageListResponse",
+                  },
+                },
+              },
+            },
+          }),
+        },
         post: {
           tags: ["Channels"],
           summary: "Send a plain-text message",
@@ -161,6 +212,84 @@ export function buildOpenApiDocument(serverUrl: string) {
           }),
         },
       },
+      [`${basePath}/channels/{channelId}/messages/{messageId}`]: {
+        delete: {
+          tags: ["Channels"],
+          summary: "Delete a message",
+          description:
+            "Deletes a message Maia is allowed to remove (Manage Messages or Maia authored the message).",
+          parameters: [guildIdParam(), channelIdParam(), messageIdParam()],
+          responses: operationResponses({
+            "200": {
+              description: "Message deleted",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/MessageDeleteResponse" },
+                },
+              },
+            },
+          }),
+        },
+      },
+      [`${basePath}/channels/{channelId}/messages/{messageId}/reactions/{emoji}`]:
+        {
+          put: {
+            tags: ["Channels"],
+            summary: "Add a bot reaction",
+            description:
+              "Adds an emoji reaction as the bot (@me) on a message in a channel Maia can react in.",
+            parameters: [
+              guildIdParam(),
+              channelIdParam(),
+              messageIdParam(),
+              reactionEmojiParam(),
+            ],
+            responses: operationResponses({
+              "200": {
+                description: "Reaction added",
+                content: {
+                  "application/json": {
+                    schema: {
+                      $ref: "#/components/schemas/MessageReactionResponse",
+                    },
+                  },
+                },
+              },
+            }),
+          },
+          delete: {
+            tags: ["Channels"],
+            summary: "Remove the bot reaction",
+            description:
+              "Removes the bot's own reaction. Optional userId query must match the bot or the reaction is not removed.",
+            parameters: [
+              guildIdParam(),
+              channelIdParam(),
+              messageIdParam(),
+              reactionEmojiParam(),
+              {
+                name: "userId",
+                in: "query" as const,
+                required: false,
+                description:
+                  "When set to a user other than the bot, Maia does not remove that user's reaction",
+                schema: { type: "string", pattern: snowflakePattern },
+              },
+            ],
+            responses: operationResponses({
+              "200": {
+                description: "Reaction removal result",
+                content: {
+                  "application/json": {
+                    schema: {
+                      $ref: "#/components/schemas/MessageReactionRemoveResponse",
+                    },
+                  },
+                },
+              },
+            }),
+          },
+        },
       [`${basePath}/roles`]: {
         get: {
           tags: ["Roles"],
@@ -652,6 +781,43 @@ export function buildOpenApiDocument(serverUrl: string) {
             id: { type: "string" },
             channelId: { type: "string" },
             content: { type: "string" },
+          },
+          additionalProperties: false,
+        },
+        MessageListResponse: {
+          type: "object",
+          required: ["ok", "messages"],
+          properties: {
+            ok: { type: "boolean", const: true },
+            messages: {
+              type: "array",
+              items: { $ref: "#/components/schemas/SentMessage" },
+            },
+          },
+          additionalProperties: false,
+        },
+        MessageDeleteResponse: {
+          type: "object",
+          required: ["ok"],
+          properties: {
+            ok: { type: "boolean", const: true },
+          },
+          additionalProperties: false,
+        },
+        MessageReactionResponse: {
+          type: "object",
+          required: ["ok"],
+          properties: {
+            ok: { type: "boolean", const: true },
+          },
+          additionalProperties: false,
+        },
+        MessageReactionRemoveResponse: {
+          type: "object",
+          required: ["ok", "removed"],
+          properties: {
+            ok: { type: "boolean", const: true },
+            removed: { type: "boolean" },
           },
           additionalProperties: false,
         },
