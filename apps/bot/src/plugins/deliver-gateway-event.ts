@@ -28,6 +28,49 @@ export interface DeliverMemberRoleGatewayEventInput {
   runInvocationEvent?: typeof executePluginEventRun;
 }
 
+export interface DeliverAlwaysOnGatewayEventInput {
+  db: Db;
+  guildId: string;
+  event: string;
+  payload: unknown;
+  alwaysOnSupervisor: AlwaysOnSupervisor;
+  getPlugins?: typeof getLatestOkPluginsByPluginId;
+  listSettings?: typeof listGuildPluginSettingsForGuild;
+}
+
+/** Message and reaction events: always-on stdin only (no invocation runs). */
+export async function deliverAlwaysOnGatewayEvent(
+  input: DeliverAlwaysOnGatewayEventInput,
+) {
+  const getPlugins = input.getPlugins ?? getLatestOkPluginsByPluginId;
+  const listSettings = input.listSettings ?? listGuildPluginSettingsForGuild;
+
+  const plugins = await getPlugins(input.db);
+  const settings = await listSettings(input.db, input.guildId);
+  const enabledPluginIds = settings
+    .filter((row) => row.enabled)
+    .map((row) => row.pluginId);
+
+  const targets = listPluginsSubscribedToEvent(
+    plugins.values(),
+    enabledPluginIds,
+    input.event,
+  );
+
+  const stdinLine = buildPluginGatewayEventStdin(
+    input.guildId,
+    input.event,
+    input.payload,
+  );
+
+  for (const plugin of targets) {
+    if (plugin.lifetime !== "always-on") {
+      continue;
+    }
+    input.alwaysOnSupervisor.writeStdin(plugin.pluginId, stdinLine);
+  }
+}
+
 export async function deliverMemberRoleGatewayEvent(
   input: DeliverMemberRoleGatewayEventInput,
 ) {

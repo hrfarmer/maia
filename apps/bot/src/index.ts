@@ -1,6 +1,9 @@
 import "./load-env.js";
 import { Client, Events, InteractionType, REST } from "discord.js";
-import { BOT_GATEWAY_INTENTS } from "./client-intents.js";
+import {
+  BOT_GATEWAY_INTENTS,
+  BOT_GATEWAY_PARTIALS,
+} from "./client-intents.js";
 import {
   getDb,
   getEnabledCustomCommandByName,
@@ -21,6 +24,7 @@ import { startPluginRuntimeLoop } from "./plugins/runtime-loop.js";
 import { PluginTokenRegistry } from "./plugins/token-registry.js";
 import { PluginEventInvocationConcurrency } from "./plugins/event-invocation-concurrency.js";
 import { registerMemberRoleGatewayEvents } from "./plugins/register-member-role-events.js";
+import { registerMessageReactionGatewayEvents } from "./plugins/register-message-reaction-events.js";
 import { SlashReplyRegistry } from "./plugins/slash-reply-registry.js";
 import { executeSlashRun } from "./plugins/execute-slash-run.js";
 
@@ -45,6 +49,7 @@ const slashContext: {
 
 const client = new Client({
   intents: [...BOT_GATEWAY_INTENTS],
+  partials: [...BOT_GATEWAY_PARTIALS],
 });
 
 client.once(Events.ClientReady, async (readyClient) => {
@@ -248,6 +253,11 @@ async function bootstrap() {
     pluginApiUrl: pluginApi.url(),
     concurrency: eventInvocationConcurrency,
     log: (line) => console.log(line),
+  });
+  registerMessageReactionGatewayEvents({
+    client,
+    db,
+    alwaysOnSupervisor,
   });
 
   await client.login(token);

@@ -47,3 +47,23 @@ export function isMemberRolePluginEvent(
 ): value is MemberRolePluginEvent {
   return MEMBER_ROLE_PLUGIN_EVENT_SET.has(value);
 }
+
+/** Gateway events delivered in issue #24 (message and reaction; always-on only). */
+export const MESSAGE_REACTION_PLUGIN_EVENTS = [
+  "message.created",
+  "reaction.added",
+  "reaction.removed",
+] as const satisfies readonly PluginEvent[];
+
+export type MessageReactionPluginEvent =
+  (typeof MESSAGE_REACTION_PLUGIN_EVENTS)[number];
+
+const MESSAGE_REACTION_PLUGIN_EVENT_SET = new Set<string>(
+  MESSAGE_REACTION_PLUGIN_EVENTS,
+);
+
+export function isMessageReactionPluginEvent(
+  value: string,
+): value is MessageReactionPluginEvent {
+  return MESSAGE_REACTION_PLUGIN_EVENT_SET.has(value);
+}

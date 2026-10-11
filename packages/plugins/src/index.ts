@@ -7,9 +7,12 @@ export {
 export {
   INVOCATION_FORBIDDEN_EVENTS,
   MEMBER_ROLE_PLUGIN_EVENTS,
+  MESSAGE_REACTION_PLUGIN_EVENTS,
   PLUGIN_EVENTS,
   isMemberRolePluginEvent,
+  isMessageReactionPluginEvent,
   type MemberRolePluginEvent,
+  type MessageReactionPluginEvent,
   type PluginEvent,
 } from "./events.js";
 export {
