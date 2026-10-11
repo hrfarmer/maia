@@ -249,4 +249,51 @@ describe("Outlook mailbox routes (#38)", () => {
     assert.equal(response.status, 200);
     assert.equal(oauthRows.has(tokenKey(MOCK_GUILD_ID, "spacelab-roster")), false);
   });
+
+  it("Disconnect does not call Discord (no role changes)", async () => {
+    oauthRows.set(tokenKey(MOCK_GUILD_ID, "spacelab-roster"), "token");
+    let discordCalls = 0;
+    const priorFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("discord.com")) {
+        discordCalls += 1;
+      }
+      return priorFetch(input, init);
+    }) as typeof fetch;
+    try {
+      const { DELETE } = await import(
+        "../../app/api/servers/[guildId]/plugins/spacelab-roster/microsoft/route.js"
+      );
+      await DELETE(new Request("http://localhost"), {
+        params: Promise.resolve({ guildId: MOCK_GUILD_ID }),
+      });
+    } finally {
+      globalThis.fetch = priorFetch;
+    }
+    assert.equal(discordCalls, 0);
+  });
+
+  it("does not expose refresh token in plugin environment fields", async () => {
+    oauthRows.set(
+      tokenKey(MOCK_GUILD_ID, "spacelab-roster"),
+      "v1:encrypted.refresh.token",
+    );
+    envValues.set(
+      MOCK_GUILD_ID,
+      new Map([["ROSTER_COLUMN", "Role"]]),
+    );
+    const { getGuildPluginsView } = await import("../plugins/service.js");
+    const view = await getGuildPluginsView({} as never, MOCK_GUILD_ID);
+    const spaceLab = view.plugins.find((p) => p.pluginId === "spacelab-roster");
+    assert.ok(spaceLab);
+    assert.deepEqual(
+      spaceLab!.environment.map((field) => field.key),
+      ["ROSTER_COLUMN"],
+    );
+    for (const field of spaceLab!.environment) {
+      assert.notEqual(field.value, "v1:encrypted.refresh.token");
+      assert.equal(field.hasSecretValue, false);
+    }
+  });
 });
