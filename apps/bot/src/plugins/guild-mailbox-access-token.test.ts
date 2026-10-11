@@ -16,8 +16,12 @@ const upsertCalls: Array<{
 
 function testDeps(): RefreshGuildMailboxAccessTokenDeps {
   return {
-    getGuildPluginOauthTokenRow: async (_db, guildId, pluginId) =>
-      storedRows.get(`${guildId}:${pluginId}`) ?? null,
+    getGuildPluginOauthTokenRow: async (_db, guildId, pluginId) => {
+      const row = storedRows.get(`${guildId}:${pluginId}`);
+      return row
+        ? { ...row, updatedAt: new Date("2026-01-01T00:00:00.000Z") }
+        : null;
+    },
     upsertGuildPluginOauthRefreshToken: async (_db, input) => {
       upsertCalls.push(input);
       storedRows.set(`${input.guildId}:${input.pluginId}`, input);

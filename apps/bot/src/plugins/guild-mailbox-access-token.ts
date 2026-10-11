@@ -37,7 +37,16 @@ function resolveMicrosoftOAuthBaseUrl(): string {
 }
 
 export interface RefreshGuildMailboxAccessTokenDeps {
-  getGuildPluginOauthTokenRow: typeof getGuildPluginOauthTokenRow;
+  getGuildPluginOauthTokenRow: (
+    db: Db,
+    guildId: string,
+    pluginId: string,
+  ) => Promise<{
+    guildId: string;
+    pluginId: string;
+    encryptedRefreshToken: string;
+    updatedAt: Date;
+  } | null>;
   upsertGuildPluginOauthRefreshToken: typeof upsertGuildPluginOauthRefreshToken;
 }
 
