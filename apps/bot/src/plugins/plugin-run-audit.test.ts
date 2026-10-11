@@ -6,6 +6,17 @@ import {
 } from "./plugin-run-audit.js";
 
 describe("plugin run audit", () => {
+  it("records plugin, guild, and cron with no user label", () => {
+    const entry = buildPluginRunAuditEntry({
+      guildId: "111",
+      pluginId: "role-sync",
+      trigger: "cron",
+      success: true,
+    });
+    assert.deepEqual(entry.detail, { trigger: "cron" });
+    assert.equal(entry.actorLabel, undefined);
+  });
+
   it("records plugin, guild, and run_now with no user label", () => {
     const entry = buildPluginRunAuditEntry({
       guildId: "111",

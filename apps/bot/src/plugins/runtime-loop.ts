@@ -33,6 +33,9 @@ export function startPluginRuntimeLoop(
         return;
       }
 
+      const trigger =
+        claimed.trigger === "cron" ? "cron" : ("run_now" as const);
+
       await executePluginRun({
         db,
         runRequestId: claimed.id,
@@ -41,6 +44,7 @@ export function startPluginRuntimeLoop(
         pluginApiUrl: input.pluginApiUrl,
         tokenRegistry: input.tokenRegistry,
         log,
+        trigger,
       });
     })().catch((error) => {
       console.error("Plugin run failed", error);

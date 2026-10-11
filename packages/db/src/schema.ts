@@ -120,6 +120,7 @@ export const guildPluginSettings = pgTable(
       .references(() => guilds.id, { onDelete: "cascade" }),
     pluginId: text("plugin_id").notNull(),
     enabled: boolean("enabled").notNull().default(false),
+    cronExpression: text("cron_expression"),
   },
   (table) => [primaryKey({ columns: [table.guildId, table.pluginId] })],
 );
@@ -149,6 +150,7 @@ export const pluginRunRequests = pgTable(
       .notNull()
       .references(() => guilds.id, { onDelete: "cascade" }),
     pluginId: text("plugin_id").notNull(),
+    trigger: varchar("trigger", { length: 16 }).notNull().default("run_now"),
     requestedAt: timestamp("requested_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

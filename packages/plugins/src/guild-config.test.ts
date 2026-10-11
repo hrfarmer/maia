@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  buildCronInvocationStdin,
+  buildInvocationStdin,
   buildManualInvocationStdin,
   buildPluginProcessEnvironment,
   canEnableGuildPlugin,
@@ -62,6 +64,17 @@ describe("plugin process contract", () => {
     assert.equal(
       buildManualInvocationStdin("123"),
       '{"guildId":"123","trigger":"run_now"}\n',
+    );
+  });
+
+  it("writes cron run stdin with a distinct trigger", () => {
+    assert.equal(
+      buildCronInvocationStdin("123"),
+      '{"guildId":"123","trigger":"cron"}\n',
+    );
+    assert.equal(
+      buildInvocationStdin("123", "cron"),
+      '{"guildId":"123","trigger":"cron"}\n',
     );
   });
 });

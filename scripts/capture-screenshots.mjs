@@ -59,10 +59,25 @@ async function capturePluginsTab(page, outputPath) {
   await page.waitForSelector('[data-testid="plugin-config"]');
   await page.getByLabel("WEBHOOK_URL *").waitFor({ timeout: 15_000 });
   await page.getByTestId("run-plugin-now").waitFor({ timeout: 15_000 });
+  await page.getByTestId("plugin-cron-control").waitFor({ timeout: 15_000 });
   await page.screenshot({
     path: outputPath,
     fullPage: true,
   });
+}
+
+async function capturePluginCronControl(page, desktopPath, mobilePath) {
+  await page.getByRole("tab", { name: "Plugins" }).click();
+  await page.waitForSelector('[data-testid="plugins-table"]');
+  await page.locator("#plugin-select").selectOption("role-sync");
+  await page.waitForSelector('[data-testid="plugin-cron-control"]');
+  const cron = page.getByTestId("plugin-cron-control");
+  if (desktopPath) {
+    await cron.screenshot({ path: desktopPath });
+  }
+  if (mobilePath) {
+    await cron.screenshot({ path: mobilePath });
+  }
 }
 
 async function main() {
@@ -133,6 +148,11 @@ async function main() {
       desktopPage,
       path.join(artifactDir, "screenshot_plugins_desktop.png"),
     );
+    await capturePluginCronControl(
+      desktopPage,
+      path.join(artifactDir, "screenshot_plugin_cron_desktop.png"),
+      null,
+    );
 
     const mobileContext = await browser.newContext({
       viewport: { width: 390, height: 844 },
@@ -154,6 +174,11 @@ async function main() {
     await capturePluginsTab(
       mobilePage,
       path.join(artifactDir, "screenshot_plugins_mobile_390.png"),
+    );
+    await capturePluginCronControl(
+      mobilePage,
+      null,
+      path.join(artifactDir, "screenshot_plugin_cron_mobile_390.png"),
     );
 
     await mobilePage.waitForTimeout(500);

@@ -37,6 +37,8 @@ interface PluginRow {
   enabled: boolean;
   canEnable: boolean;
   canRunNow: boolean;
+  showCronControl: boolean;
+  cronExpression: string | null;
 }
 
 interface ScanState {
@@ -82,6 +84,7 @@ export function PluginsPanel({ guildId }: PluginsPanelProps) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [draftValues, setDraftValues] = useState<Record<string, string>>({});
+  const [draftCron, setDraftCron] = useState("");
   const [selectedPluginId, setSelectedPluginId] = useState<string | null>(null);
 
   const loadPlugins = useCallback(async () => {
@@ -121,8 +124,10 @@ export function PluginsPanel({ guildId }: PluginsPanelProps) {
   useEffect(() => {
     if (!selectedPlugin) {
       setDraftValues({});
+      setDraftCron("");
       return;
     }
+    setDraftCron(selectedPlugin.cronExpression ?? "");
     const next: Record<string, string> = {};
     for (const field of selectedPlugin.environment) {
       if (!field.secret && field.value) {
@@ -158,6 +163,7 @@ export function PluginsPanel({ guildId }: PluginsPanelProps) {
     pluginId: string;
     enabled?: boolean;
     values?: Record<string, string | null>;
+    cronExpression?: string | null;
   }) {
     setBusy(true);
     setStatus(null);
@@ -170,6 +176,7 @@ export function PluginsPanel({ guildId }: PluginsPanelProps) {
           body: JSON.stringify({
             enabled: input.enabled,
             values: input.values,
+            cronExpression: input.cronExpression,
           }),
         },
       );
@@ -353,6 +360,37 @@ export function PluginsPanel({ guildId }: PluginsPanelProps) {
                 No environment keys declared.
               </p>
             )}
+
+            {selectedPlugin.showCronControl ? (
+              <div
+                className="space-y-2"
+                data-testid="plugin-cron-control"
+              >
+                <Label htmlFor="plugin-cron">Cron (UTC)</Label>
+                <Input
+                  id="plugin-cron"
+                  className="rounded-sm font-mono text-sm"
+                  placeholder="minute hour day month weekday"
+                  value={draftCron}
+                  onChange={(event) => setDraftCron(event.target.value)}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="rounded-sm"
+                  disabled={busy}
+                  onClick={() =>
+                    void savePluginConfig({
+                      pluginId: selectedPlugin.pluginId!,
+                      cronExpression: draftCron.trim() === "" ? null : draftCron.trim(),
+                    })
+                  }
+                >
+                  Save cron
+                </Button>
+              </div>
+            ) : null}
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2">

@@ -21,6 +21,14 @@ export {
 } from "./manifest.js";
 export { resolvePluginsDirectory } from "./paths.js";
 export {
+  cronMatchesUtcMinute,
+  isValidCronExpression,
+  utcMinuteStart,
+} from "./cron.js";
+export { dueCronTargets, type PluginCronTarget } from "./cron-schedule.js";
+export {
+  buildCronInvocationStdin,
+  buildInvocationStdin,
   buildManualInvocationStdin,
   buildPluginProcessEnvironment,
   canEnableGuildPlugin,
@@ -29,6 +37,7 @@ export {
   MAIA_PLUGIN_TOKEN_ENV,
   MAIA_PLUGIN_URL_ENV,
   type GuildPluginValueMap,
+  type CronInvocationStdin,
   type ManualInvocationStdin,
   type PluginRunTrigger,
 } from "./guild-config.js";
