@@ -2,9 +2,9 @@
   "name": "maia",
   "private": true,
   "scripts": {
-    "build": "pnpm --filter @maia/discord build && pnpm --filter @maia/db build && pnpm --filter @maia/bot build && pnpm --filter @maia/dashboard build",
-    "test": "pnpm --filter @maia/discord test && pnpm --filter @maia/dashboard test",
-    "typecheck": "pnpm --filter @maia/discord build && pnpm --filter @maia/db build && pnpm -r run typecheck",
+    "build": "pnpm --filter @maia/discord build && pnpm --filter @maia/db build && pnpm --filter @maia/plugins build && pnpm --filter @maia/bot build && pnpm --filter @maia/dashboard build",
+    "test": "pnpm --filter @maia/discord test && pnpm --filter @maia/plugins test && pnpm --filter @maia/db test && pnpm --filter @maia/dashboard test",
+    "typecheck": "pnpm --filter @maia/discord build && pnpm --filter @maia/db build && pnpm --filter @maia/plugins build && pnpm -r run typecheck",
     "db:generate": "pnpm --filter @maia/db generate",
     "db:migrate": "pnpm --filter @maia/db migrate",
     "bot:dev": "pnpm --filter @maia/bot dev",

@@ -29,6 +29,13 @@
       "when": 1760300000000,
       "tag": "0003_custom_command_ephemeral",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1760400000000,
+      "tag": "0004_plugin_discovery",
+      "breakpoints": true
     }
   ]
 }

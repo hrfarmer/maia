@@ -80,6 +80,40 @@ export const guildApiKeys = pgTable(
   (table) => [index("guild_api_keys_guild_id_idx").on(table.guildId)],
 );
 
+export const pluginScans = pgTable("plugin_scans", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  startedAt: timestamp("started_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  trigger: varchar("trigger", { length: 32 }).notNull(),
+  scanError: text("scan_error"),
+});
+
+export const discoveredPlugins = pgTable(
+  "discovered_plugins",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    scanId: varchar("scan_id", { length: 36 })
+      .notNull()
+      .references(() => pluginScans.id, { onDelete: "cascade" }),
+    directoryName: text("directory_name").notNull(),
+    status: varchar("status", { length: 16 }).notNull(),
+    pluginId: text("plugin_id"),
+    name: text("name"),
+    version: text("version"),
+    errorMessage: text("error_message"),
+  },
+  (table) => [index("discovered_plugins_scan_id_idx").on(table.scanId)],
+);
+
+export const botRuntimeState = pgTable("bot_runtime_state", {
+  id: varchar("id", { length: 32 }).primaryKey(),
+  pluginRefreshRequestedAt: timestamp("plugin_refresh_requested_at", {
+    withTimezone: true,
+  }),
+});
+
 export const auditLogs = pgTable(
   "audit_logs",
   {
@@ -103,6 +137,20 @@ export const auditLogs = pgTable(
   (table) => [
     index("audit_logs_guild_created_idx").on(table.guildId, table.createdAt),
   ],
+);
+
+export const pluginScansRelations = relations(pluginScans, ({ many }) => ({
+  discoveredPlugins: many(discoveredPlugins),
+}));
+
+export const discoveredPluginsRelations = relations(
+  discoveredPlugins,
+  ({ one }) => ({
+    scan: one(pluginScans, {
+      fields: [discoveredPlugins.scanId],
+      references: [pluginScans.id],
+    }),
+  }),
 );
 
 export const guildsRelations = relations(guilds, ({ many }) => ({

@@ -45,6 +45,23 @@ async function captureCustomCommandsTab(page, outputPath) {
   });
 }
 
+async function capturePluginsTab(page, outputPath) {
+  await page.getByRole("tab", { name: "Plugins" }).click();
+  await page.waitForSelector('[data-testid="plugins-table"]');
+  await page
+    .locator('[data-testid="plugins-table"]')
+    .getByRole("cell", { name: "broken", exact: true })
+    .waitFor({ timeout: 15_000 });
+  await page
+    .locator('[data-testid="plugins-table"]')
+    .getByRole("cell", { name: "Welcome", exact: true })
+    .waitFor({ timeout: 15_000 });
+  await page.screenshot({
+    path: outputPath,
+    fullPage: true,
+  });
+}
+
 async function main() {
   fs.mkdirSync(artifactDir, { recursive: true });
 
@@ -109,6 +126,11 @@ async function main() {
       path.join(artifactDir, "screenshot_custom_commands_desktop.png"),
     );
 
+    await capturePluginsTab(
+      desktopPage,
+      path.join(artifactDir, "screenshot_plugins_desktop.png"),
+    );
+
     const mobileContext = await browser.newContext({
       viewport: { width: 390, height: 844 },
       isMobile: true,
@@ -124,6 +146,11 @@ async function main() {
     await captureCustomCommandsTab(
       mobilePage,
       path.join(artifactDir, "screenshot_custom_commands_mobile.png"),
+    );
+
+    await capturePluginsTab(
+      mobilePage,
+      path.join(artifactDir, "screenshot_plugins_mobile_390.png"),
     );
 
     await mobilePage.waitForTimeout(500);
