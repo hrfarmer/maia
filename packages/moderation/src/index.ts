@@ -2,6 +2,8 @@ export * from "./discord-bot.js";
 export * from "./channel-permissions.js";
 export * from "./hierarchy.js";
 export * from "./message-send.js";
+export * from "./message-read.js";
+export * from "./message-reactions.js";
 export * from "./messages.js";
 export * from "./role-create.js";
 export * from "./service.js";

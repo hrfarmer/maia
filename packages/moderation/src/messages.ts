@@ -3,22 +3,33 @@ import { getDb, recordAuditLog } from "@maia/db";
 import {
   type DiscordGuildChannel,
   PLAIN_TEXT_GUILD_CHANNEL_TYPES,
+  botCanAddReactions,
+  botCanManageMessages,
+  botCanReadMessageHistory,
   botCanSendMessages,
   botCanViewChannel,
 } from "./channel-permissions.js";
 import {
   DiscordApiError,
+  addOwnMessageReaction,
   createChannelMessage,
+  deleteChannelMessage,
+  fetchChannelMessage,
+  fetchChannelMessages,
   fetchGuildChannels,
   fetchGuildMember,
   fetchGuildRoles,
   getBotUserId,
+  removeOwnMessageReaction,
+  type DiscordChannelMessage,
   type DiscordGuildMember,
 } from "./discord-bot.js";
 import { ModerationError } from "./hierarchy.js";
+import type { ParsedMessageListQuery } from "./message-read.js";
 import type { ParsedMessageSend } from "./message-send.js";
 import { computeGuildPermissions } from "./role-create.js";
 import type { ModerationActor } from "./service.js";
+import type { AuditAction } from "@maia/db";
 
 export interface GuildChannelSummary {
   id: string;
@@ -56,7 +67,8 @@ function actorReason(actor: ModerationActor): string | undefined {
   return actor.label;
 }
 
-async function auditMessageSend(
+async function auditMessageAction(
+  action: AuditAction,
   actor: ModerationActor,
   guildId: string,
   input: {
@@ -71,13 +83,52 @@ async function auditMessageSend(
     source: actor.source,
     actorId: actor.id,
     actorLabel: actor.label,
-    action: "message.send",
+    action,
     targetType: "message",
     targetId: input.targetId,
     detail: input.detail,
     success: input.success,
     errorMessage: input.errorMessage,
   });
+}
+
+function mapChannelMessage(
+  channelId: string,
+  message: DiscordChannelMessage,
+) {
+  return {
+    id: message.id,
+    channelId,
+    content: message.content ?? "",
+  };
+}
+
+function assertChannelViewable(
+  ctx: Awaited<ReturnType<typeof loadBotGuildContext>>,
+  guildId: string,
+  channelId: string,
+): DiscordGuildChannel {
+  const channel = findGuildChannel(ctx.channels, channelId);
+  const guildPerms = computeGuildPermissions(
+    ctx.botMember,
+    ctx.roles,
+    guildId,
+  );
+  const admin = hasPermission(guildPerms, Permission.Administrator);
+  const canView =
+    admin ||
+    botCanViewChannel(
+      ctx.botMember,
+      channel,
+      ctx.roles,
+      guildId,
+      ctx.botUserId,
+      ctx.channelsById,
+    );
+  if (!canView) {
+    throw new ModerationError("Maia cannot view that channel.");
+  }
+  return channel;
 }
 
 function mapDiscordError(error: unknown): never {
@@ -182,7 +233,7 @@ export async function sendGuildChannelMessage(
       reason: actorReason(actor),
     });
 
-    await auditMessageSend(actor, guildId, {
+    await auditMessageAction("message.send", actor, guildId, {
       targetId: created.id,
       detail: {
         channelId,
@@ -201,13 +252,227 @@ export async function sendGuildChannelMessage(
       },
     };
   } catch (error) {
-    await auditMessageSend(actor, guildId, {
+    await auditMessageAction("message.send", actor, guildId, {
       targetId: channelId,
       detail: {
         channelId,
         content: input.content,
         replyToMessageId: input.replyToMessageId,
       },
+      success: false,
+      errorMessage: error instanceof Error ? error.message : "Failed",
+    }).catch(() => undefined);
+    mapDiscordError(error);
+  }
+}
+
+export async function listGuildChannelMessages(
+  guildId: string,
+  channelId: string,
+  query: ParsedMessageListQuery,
+) {
+  try {
+    const ctx = await loadBotGuildContext(guildId);
+    const channel = assertChannelViewable(ctx, guildId, channelId);
+    const guildPerms = computeGuildPermissions(
+      ctx.botMember,
+      ctx.roles,
+      guildId,
+    );
+    const admin = hasPermission(guildPerms, Permission.Administrator);
+    const canRead =
+      admin ||
+      botCanReadMessageHistory(
+        ctx.botMember,
+        channel,
+        ctx.roles,
+        guildId,
+        ctx.botUserId,
+        ctx.channelsById,
+      );
+    if (!canRead) {
+      throw new ModerationError(
+        "Maia cannot read message history in that channel.",
+      );
+    }
+
+    const messages = await fetchChannelMessages(channelId, query.limit);
+    return {
+      ok: true as const,
+      messages: messages.map((message) => mapChannelMessage(channelId, message)),
+    };
+  } catch (error) {
+    mapDiscordError(error);
+  }
+}
+
+export async function deleteGuildChannelMessage(
+  guildId: string,
+  channelId: string,
+  messageId: string,
+  actor: ModerationActor,
+) {
+  try {
+    const ctx = await loadBotGuildContext(guildId);
+    const channel = assertChannelViewable(ctx, guildId, channelId);
+    const guildPerms = computeGuildPermissions(
+      ctx.botMember,
+      ctx.roles,
+      guildId,
+    );
+    const admin = hasPermission(guildPerms, Permission.Administrator);
+    const canManage =
+      admin ||
+      botCanManageMessages(
+        ctx.botMember,
+        channel,
+        ctx.roles,
+        guildId,
+        ctx.botUserId,
+        ctx.channelsById,
+      );
+
+    const message = await fetchChannelMessage(channelId, messageId);
+    const authorId = message.author?.id;
+    const canDelete =
+      canManage || (authorId !== undefined && authorId === ctx.botUserId);
+    if (!canDelete) {
+      throw new ModerationError("Maia cannot delete that message.");
+    }
+
+    await deleteChannelMessage(channelId, messageId, actorReason(actor));
+
+    await auditMessageAction("message.delete", actor, guildId, {
+      targetId: messageId,
+      detail: { channelId },
+      success: true,
+    });
+
+    return { ok: true as const };
+  } catch (error) {
+    await auditMessageAction("message.delete", actor, guildId, {
+      targetId: messageId,
+      detail: { channelId },
+      success: false,
+      errorMessage: error instanceof Error ? error.message : "Failed",
+    }).catch(() => undefined);
+    mapDiscordError(error);
+  }
+}
+
+export async function addGuildChannelMessageReaction(
+  guildId: string,
+  channelId: string,
+  messageId: string,
+  emoji: string,
+  actor: ModerationActor,
+) {
+  try {
+    const ctx = await loadBotGuildContext(guildId);
+    const channel = assertChannelViewable(ctx, guildId, channelId);
+    const guildPerms = computeGuildPermissions(
+      ctx.botMember,
+      ctx.roles,
+      guildId,
+    );
+    const admin = hasPermission(guildPerms, Permission.Administrator);
+    const canReact =
+      admin ||
+      botCanAddReactions(
+        ctx.botMember,
+        channel,
+        ctx.roles,
+        guildId,
+        ctx.botUserId,
+        ctx.channelsById,
+      );
+    if (!canReact) {
+      throw new ModerationError("Maia cannot add reactions in that channel.");
+    }
+
+    await addOwnMessageReaction(
+      channelId,
+      messageId,
+      emoji,
+      actorReason(actor),
+    );
+
+    await auditMessageAction("message.reaction.add", actor, guildId, {
+      targetId: messageId,
+      detail: { channelId, emoji },
+      success: true,
+    });
+
+    return { ok: true as const };
+  } catch (error) {
+    await auditMessageAction("message.reaction.add", actor, guildId, {
+      targetId: messageId,
+      detail: { channelId, emoji },
+      success: false,
+      errorMessage: error instanceof Error ? error.message : "Failed",
+    }).catch(() => undefined);
+    mapDiscordError(error);
+  }
+}
+
+export async function removeGuildChannelMessageReaction(
+  guildId: string,
+  channelId: string,
+  messageId: string,
+  emoji: string,
+  actor: ModerationActor,
+  options: { userId?: string } = {},
+) {
+  if (options.userId !== undefined) {
+    const ctx = await loadBotGuildContext(guildId);
+    if (options.userId !== ctx.botUserId) {
+      return { ok: true as const, removed: false as const };
+    }
+  }
+
+  try {
+    const ctx = await loadBotGuildContext(guildId);
+    const channel = assertChannelViewable(ctx, guildId, channelId);
+    const guildPerms = computeGuildPermissions(
+      ctx.botMember,
+      ctx.roles,
+      guildId,
+    );
+    const admin = hasPermission(guildPerms, Permission.Administrator);
+    const canReact =
+      admin ||
+      botCanAddReactions(
+        ctx.botMember,
+        channel,
+        ctx.roles,
+        guildId,
+        ctx.botUserId,
+        ctx.channelsById,
+      );
+    if (!canReact) {
+      throw new ModerationError(
+        "Maia cannot remove reactions in that channel.",
+      );
+    }
+
+    await removeOwnMessageReaction(
+      channelId,
+      messageId,
+      emoji,
+      actorReason(actor),
+    );
+
+    await auditMessageAction("message.reaction.remove", actor, guildId, {
+      targetId: messageId,
+      detail: { channelId, emoji },
+      success: true,
+    });
+
+    return { ok: true as const, removed: true as const };
+  } catch (error) {
+    await auditMessageAction("message.reaction.remove", actor, guildId, {
+      targetId: messageId,
+      detail: { channelId, emoji },
       success: false,
       errorMessage: error instanceof Error ? error.message : "Failed",
     }).catch(() => undefined);

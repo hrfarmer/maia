@@ -154,3 +154,88 @@ export function botCanSendMessages(
     hasPermission(perms, Permission.SendMessages)
   );
 }
+
+function channelPermissions(
+  member: DiscordGuildMember,
+  channel: DiscordGuildChannel,
+  roles: DiscordRole[],
+  guildId: string,
+  userId: string,
+  channelsById: Map<string, DiscordGuildChannel>,
+): bigint {
+  return computeChannelPermissions(
+    member,
+    channel,
+    roles,
+    guildId,
+    userId,
+    channelsById,
+  );
+}
+
+export function botCanReadMessageHistory(
+  member: DiscordGuildMember,
+  channel: DiscordGuildChannel,
+  roles: DiscordRole[],
+  guildId: string,
+  userId: string,
+  channelsById: Map<string, DiscordGuildChannel>,
+): boolean {
+  const perms = channelPermissions(
+    member,
+    channel,
+    roles,
+    guildId,
+    userId,
+    channelsById,
+  );
+  return (
+    hasPermission(perms, Permission.ViewChannel) &&
+    hasPermission(perms, Permission.ReadMessageHistory)
+  );
+}
+
+export function botCanManageMessages(
+  member: DiscordGuildMember,
+  channel: DiscordGuildChannel,
+  roles: DiscordRole[],
+  guildId: string,
+  userId: string,
+  channelsById: Map<string, DiscordGuildChannel>,
+): boolean {
+  const perms = channelPermissions(
+    member,
+    channel,
+    roles,
+    guildId,
+    userId,
+    channelsById,
+  );
+  return (
+    hasPermission(perms, Permission.ViewChannel) &&
+    hasPermission(perms, Permission.ManageMessages)
+  );
+}
+
+export function botCanAddReactions(
+  member: DiscordGuildMember,
+  channel: DiscordGuildChannel,
+  roles: DiscordRole[],
+  guildId: string,
+  userId: string,
+  channelsById: Map<string, DiscordGuildChannel>,
+): boolean {
+  const perms = channelPermissions(
+    member,
+    channel,
+    roles,
+    guildId,
+    userId,
+    channelsById,
+  );
+  return (
+    hasPermission(perms, Permission.ViewChannel) &&
+    hasPermission(perms, Permission.ReadMessageHistory) &&
+    hasPermission(perms, Permission.AddReactions)
+  );
+}
