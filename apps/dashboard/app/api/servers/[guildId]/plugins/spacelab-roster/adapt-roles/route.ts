@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { Permission } from "@maia/discord";
-import { getDb, listGuildPluginEnvValues } from "@maia/db";
+import {
+  enqueuePluginGuildConfigNotification,
+  getDb,
+  listGuildPluginEnvValues,
+} from "@maia/db";
 import { SPACELAB_ROSTER_PLUGIN_ID } from "@maia/plugins";
 import { jsonError } from "@/lib/api/http";
 import {
@@ -117,6 +121,11 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   await saveSpacelabAdaptRoleLinks(repo, normalized);
+  await enqueuePluginGuildConfigNotification(db, {
+    pluginId: SPACELAB_ROSTER_PLUGIN_ID,
+    guildId,
+    changeType: "adapt_roles_saved",
+  });
   const view = await buildSpacelabAdaptRolesView(
     repo,
     guildRoles.map((role) => ({ id: role.id, name: role.name })),

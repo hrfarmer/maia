@@ -4,6 +4,26 @@ export interface ParsedRosterRow {
   adaptRoleValues: string[];
 }
 
+/** Saved roster row; may carry a Discord user id after a successful reconcile. */
+export interface SavedRosterRow extends ParsedRosterRow {
+  discordUserId?: string;
+}
+
 export type ParseLabRosterResult =
   | { ok: true; rows: ParsedRosterRow[]; adaptRoleValues: string[] }
   | { ok: false };
+
+export interface SpacelabRememberedMember {
+  discordUserId: string;
+  discordHandle: string;
+}
+
+export interface SpacelabReconcileFailure {
+  memberKey: string;
+  discordHandle: string;
+  attempts: number;
+}
+
+export interface SpacelabReconcilePassMode {
+  kind: "full" | "retry-failures-only";
+}

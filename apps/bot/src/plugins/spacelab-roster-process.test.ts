@@ -58,6 +58,107 @@ describe("Space Lab roster always-on process", () => {
     assert.equal(exitCode, 1);
   });
 
+  it("runs a reconcile pass after values_saved when roster state exists", async () => {
+    const registry = new PluginTokenRegistry();
+    const token = registry.mintAlwaysOnToken("spacelab-roster");
+    const enabledGuilds = new Set(["guild-1"]);
+    let savedRows: unknown;
+    const api = createPluginApiServer({
+      port: 0,
+      tokenRegistry: registry,
+      db: {
+        query: {
+          spacelabGuildRosterState: {
+            findFirst: async () => ({
+              rowsJson: JSON.stringify([
+                {
+                  discordHandle: "user.a",
+                  status: "Active",
+                  adaptRoleValues: ["Alpha"],
+                },
+              ]),
+              adaptValuesJson: JSON.stringify(["Alpha"]),
+              parsedAt: new Date(),
+            }),
+          },
+          spacelabAdaptRoleLinks: {
+            findMany: async () => [
+              { adaptValue: "Alpha", discordRoleId: "role-alpha" },
+            ],
+          },
+          spacelabRememberedMembers: { findMany: async () => [] },
+          spacelabReconcileFailures: { findMany: async () => [] },
+        },
+        update: () => ({
+          set: () => ({
+            where: async () => undefined,
+          }),
+        }),
+        delete: () => ({
+          where: async () => undefined,
+        }),
+        insert: () => ({
+          values: async () => undefined,
+        }),
+      } as unknown as Db,
+      assertGuildApiAccess: async (provided, guildId) => {
+        const entry = registry.lookup(provided);
+        if (!entry || entry.kind !== "always-on") {
+          return null;
+        }
+        return enabledGuilds.has(guildId)
+          ? { pluginId: entry.pluginId }
+          : null;
+      },
+      loadGuildValues: async () => ({ ROSTER_COLUMN: "Subteam" }),
+      moderationHandlers: {
+        listRolesForGuild: async () => [
+          { id: "role-alpha", name: "Alpha", color: 0, managed: false, position: 1 },
+        ],
+        moderationCreateRole: async () => ({ ok: true, role: { id: "x", name: "x", color: 0, managed: false, position: 0, hoist: false, mentionable: false } }),
+        moderationUpdateRole: async () => ({ ok: true, role: { id: "x", name: "x", color: 0, managed: false, position: 0 } }),
+        moderationDeleteRole: async () => ({ ok: true }),
+        searchGuildMembersForModeration: async (_guildId, query) =>
+          query === "user.a"
+            ? [{ user: { id: "uid-a", username: "user.a" }, roles: [] }]
+            : [],
+        getMemberRoleIds: async () => [],
+        moderationSetRoles: async () => {
+          throw new Error("replace-all roles must not be called");
+        },
+        moderationAddRole: async () => ({ ok: true, noop: false }),
+        moderationRemoveRole: async () => ({ ok: true, noop: false }),
+        moderationKick: async () => ({ ok: true }),
+        moderationBan: async () => ({ ok: true }),
+        moderationUnban: async () => ({ ok: true }),
+        moderationTimeout: async () => ({ ok: true, until: new Date().toISOString() }),
+        moderationUntimeout: async () => ({ ok: true, noop: false }),
+        moderationNickname: async () => ({ ok: true }),
+      },
+    });
+    await api.listen();
+
+    const env = buildAlwaysOnPluginProcessEnvironment({
+      pluginToken: token,
+      pluginUrl: api.url(),
+    });
+    const child = spawnSpacelabProcess(env);
+
+    let stdout = "";
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      stdout += chunk;
+    });
+
+    child.stdin.write('{"guildId":"guild-1","change":"values_saved"}\n');
+
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    await waitForProcessExit(child);
+
+    assert.match(stdout, /"reconcile":\{"ok":true/);
+    await api.close();
+  });
+
   it("reads ROSTER_COLUMN from the localhost values API after values_saved", async () => {
     const registry = new PluginTokenRegistry();
     const token = registry.mintAlwaysOnToken("spacelab-roster");
@@ -65,7 +166,11 @@ describe("Space Lab roster always-on process", () => {
     const api = createPluginApiServer({
       port: 0,
       tokenRegistry: registry,
-      db: {} as Db,
+      db: {
+        query: {
+          spacelabGuildRosterState: { findFirst: async () => null },
+        },
+      } as unknown as Db,
       assertGuildApiAccess: async (provided, guildId) => {
         const entry = registry.lookup(provided);
         if (!entry || entry.kind !== "always-on") {

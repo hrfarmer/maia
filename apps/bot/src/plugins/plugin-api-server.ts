@@ -18,6 +18,7 @@ import {
   tryHandlePluginMessagesRequest,
   type PluginMessageHandlers,
 } from "./plugin-api-messages.js";
+import { tryHandlePluginSpacelabRosterRequest } from "./plugin-api-spacelab-roster.js";
 import {
   defaultPluginModerationHandlers,
   tryHandlePluginModerationRequest,
@@ -202,6 +203,18 @@ export function createPluginApiServer(options: PluginApiServerOptions) {
         mailboxHandlers,
       );
       if (mailboxHandled) {
+        return;
+      }
+
+      const spacelabHandled = await tryHandlePluginSpacelabRosterRequest(
+        req,
+        res,
+        url,
+        guildId,
+        entry.pluginId,
+        options.db,
+      );
+      if (spacelabHandled) {
         return;
       }
 

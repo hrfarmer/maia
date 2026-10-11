@@ -65,7 +65,32 @@ export {
   parseLabRosterMessage,
   rosterStatusIsActive,
 } from "./spacelab-roster/parse.js";
-export type { ParsedRosterRow, ParseLabRosterResult } from "./spacelab-roster/types.js";
+export type {
+  ParsedRosterRow,
+  ParseLabRosterResult,
+  SavedRosterRow,
+  SpacelabRememberedMember,
+  SpacelabReconcileFailure,
+  SpacelabReconcilePassMode,
+} from "./spacelab-roster/types.js";
+export {
+  runReconcilePass,
+  buildManagedLinkedRoleIds,
+  desiredLinkedRoleIdsForValues,
+  exactUsernameMatches,
+  MAX_CONSECUTIVE_DISCORD_ERRORS,
+  MAX_RECONCILE_MEMBER_ATTEMPTS,
+  type DiscordRoleApi,
+  type ReconcilePassInput,
+  type ReconcilePassResult,
+} from "./spacelab-roster/reconcile-pass.js";
+export {
+  createMaiaDiscordRoleApi,
+  fetchSpacelabReconcileState,
+  saveSpacelabReconcileState,
+  type MaiaPluginClientConfig,
+} from "./spacelab-roster/maia-discord-role-api.js";
+export { runSpacelabGuildReconcile } from "./spacelab-roster/run-spacelab-reconcile.js";
 export {
   SYNTHETIC_LAB_ROSTER_EXPORT,
   SYNTHETIC_LAB_ROSTER_EXPORT_INVALID_ROW,

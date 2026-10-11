@@ -1,4 +1,5 @@
 import readline from "node:readline";
+import { runSpacelabGuildReconcile } from "./reconcile.mjs";
 
 const pluginToken = process.env.MAIA_PLUGIN_TOKEN;
 const pluginUrl = process.env.MAIA_PLUGIN_URL;
@@ -34,6 +35,36 @@ async function fetchRosterColumn(guildId) {
   return typeof column === "string" ? column : null;
 }
 
+async function runReconcileForGuild(guildId, change) {
+  const rosterColumn = await fetchRosterColumn(guildId);
+  if (rosterColumn !== null) {
+    process.stdout.write(
+      `${JSON.stringify({ guildId, rosterColumn, change })}\n`,
+    );
+  }
+  try {
+    const result = await runSpacelabGuildReconcile({
+      pluginUrl,
+      pluginToken,
+      guildId,
+      fetchImpl: fetch,
+    });
+    process.stdout.write(
+      `${JSON.stringify({ guildId, reconcile: result })}\n`,
+    );
+  } catch (error) {
+    process.stdout.write(
+      `${JSON.stringify({
+        guildId,
+        reconcile: {
+          ok: false,
+          error: error instanceof Error ? error.message : "reconcile_failed",
+        },
+      })}\n`,
+    );
+  }
+}
+
 const rl = readline.createInterface({ input: process.stdin });
 
 rl.on("line", (line) => {
@@ -48,14 +79,13 @@ rl.on("line", (line) => {
       return;
     }
     const change = message.change;
-    if (change !== "enabled" && change !== "values_saved") {
+    if (
+      change !== "enabled" &&
+      change !== "values_saved" &&
+      change !== "adapt_roles_saved"
+    ) {
       return;
     }
-    const rosterColumn = await fetchRosterColumn(message.guildId);
-    if (rosterColumn !== null) {
-      process.stdout.write(
-        `${JSON.stringify({ guildId: message.guildId, rosterColumn })}\n`,
-      );
-    }
+    await runReconcileForGuild(message.guildId, change);
   })();
 });
