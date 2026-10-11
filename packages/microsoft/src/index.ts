@@ -11,6 +11,7 @@ export {
   createMicrosoftOAuthState,
   exchangeMicrosoftAuthorizationCode,
   parseMicrosoftOAuthState,
+  refreshMicrosoftAccessToken,
   type MicrosoftOAuthStatePayload,
   type MicrosoftTokenResponse,
 } from "./oauth.js";

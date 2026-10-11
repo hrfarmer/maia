@@ -106,3 +106,27 @@ export async function exchangeMicrosoftAuthorizationCode(
   }
   return (await response.json()) as MicrosoftTokenResponse;
 }
+
+export async function refreshMicrosoftAccessToken(
+  config: Pick<MicrosoftOAuthConfig, "clientId" | "clientSecret" | "tokenUrl">,
+  refreshToken: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<MicrosoftTokenResponse> {
+  const body = new URLSearchParams({
+    client_id: config.clientId,
+    client_secret: config.clientSecret,
+    grant_type: "refresh_token",
+    refresh_token: refreshToken,
+    scope: MICROSOFT_OAUTH_SCOPES.join(" "),
+  });
+  const response = await fetchImpl(config.tokenUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Microsoft token refresh failed: ${response.status} ${text}`);
+  }
+  return (await response.json()) as MicrosoftTokenResponse;
+}

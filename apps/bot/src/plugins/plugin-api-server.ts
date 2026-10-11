@@ -9,6 +9,11 @@ import {
   readBearerToken,
 } from "./plugin-api-auth.js";
 import {
+  defaultPluginMailboxHandlers,
+  tryHandlePluginMailboxRequest,
+  type PluginMailboxHandlers,
+} from "./plugin-api-mailbox.js";
+import {
   defaultPluginMessageHandlers,
   tryHandlePluginMessagesRequest,
   type PluginMessageHandlers,
@@ -37,6 +42,7 @@ export interface PluginApiServerOptions {
   moderationHandlers?: PluginModerationHandlers;
   slashReplies?: SlashReplyRegistry;
   messageHandlers?: PluginMessageHandlers;
+  mailboxHandlers?: PluginMailboxHandlers;
 }
 
 function sendJson(
@@ -79,6 +85,9 @@ export function createPluginApiServer(options: PluginApiServerOptions) {
 
   const messageHandlers =
     options.messageHandlers ?? defaultPluginMessageHandlers();
+
+  const mailboxHandlers =
+    options.mailboxHandlers ?? defaultPluginMailboxHandlers();
 
   const server = http.createServer((req, res) => {
     void (async () => {
@@ -180,6 +189,19 @@ export function createPluginApiServer(options: PluginApiServerOptions) {
         messageHandlers,
       );
       if (messageHandled) {
+        return;
+      }
+
+      const mailboxHandled = await tryHandlePluginMailboxRequest(
+        req,
+        res,
+        url,
+        guildId,
+        entry.pluginId,
+        options.db,
+        mailboxHandlers,
+      );
+      if (mailboxHandled) {
         return;
       }
 

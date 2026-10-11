@@ -20,6 +20,9 @@ importers:
       '@maia/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@maia/microsoft':
+        specifier: workspace:*
+        version: link:../../packages/microsoft
       '@maia/moderation':
         specifier: workspace:*
         version: link:../../packages/moderation
