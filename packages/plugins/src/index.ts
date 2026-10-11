@@ -56,6 +56,21 @@ export {
   type SyncShippedSpacelabPluginOptions,
 } from "./shipped-spacelab-sync.js";
 export {
+  buildSpacelabAdaptRoleRows,
+  type SpacelabAdaptRoleRowView,
+} from "./spacelab-roster/adapt-role-view.js";
+export {
+  isLabRosterExportMessage,
+  labRosterExportHeaders,
+  parseLabRosterMessage,
+  rosterStatusIsActive,
+} from "./spacelab-roster/parse.js";
+export type { ParsedRosterRow, ParseLabRosterResult } from "./spacelab-roster/types.js";
+export {
+  SYNTHETIC_LAB_ROSTER_EXPORT,
+  SYNTHETIC_LAB_ROSTER_EXPORT_INVALID_ROW,
+} from "./spacelab-roster/fixture.js";
+export {
   cronMatchesUtcMinute,
   isValidCronExpression,
   utcMinuteStart,

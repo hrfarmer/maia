@@ -220,7 +220,7 @@ export const devGuildPlugins = [
         key: "ROSTER_COLUMN",
         required: true,
         secret: false,
-        value: "Role",
+        value: "Subteam",
         hasSecretValue: false,
       },
     ],

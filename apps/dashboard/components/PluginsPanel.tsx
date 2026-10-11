@@ -15,6 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { SpacelabRosterAdaptRolesCard } from "@/components/SpacelabRosterAdaptRolesCard";
 
 interface PluginEnvironmentField {
   key: string;
@@ -425,6 +426,10 @@ export function PluginsPanel({ guildId }: PluginsPanelProps) {
                   </Button>
                 )}
               </div>
+            ) : null}
+
+            {selectedPlugin.pluginId === "spacelab-roster" ? (
+              <SpacelabRosterAdaptRolesCard guildId={guildId} />
             ) : null}
 
             {selectedPlugin.showSlashControl ? (
