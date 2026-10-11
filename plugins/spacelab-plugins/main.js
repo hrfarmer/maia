@@ -1,5 +1,10 @@
 import readline from "node:readline";
-import { runSpacelabGuildReconcile } from "./reconcile.mjs";
+import {
+  createGraphMailboxClient,
+  resolveGraphBaseUrl,
+  runSpacelabGuildCycle,
+  startSpacelabMinutePoll,
+} from "./reconcile.mjs";
 
 const pluginToken = process.env.MAIA_PLUGIN_TOKEN;
 const pluginUrl = process.env.MAIA_PLUGIN_URL;
@@ -16,49 +21,42 @@ for (const forbidden of ["DISCORD_TOKEN", "DATABASE_URL", "ROSTER_COLUMN"]) {
   }
 }
 
-async function fetchRosterColumn(guildId) {
-  const response = await fetch(
-    `${pluginUrl}/v1/guilds/${encodeURIComponent(guildId)}/values`,
-    {
-      headers: { Authorization: `Bearer ${pluginToken}` },
-    },
-  );
-  if (!response.ok) {
-    return null;
-  }
-  const body = await response.json();
-  const values = body?.values;
-  if (!values || typeof values !== "object") {
-    return null;
-  }
-  const column = values.ROSTER_COLUMN;
-  return typeof column === "string" ? column : null;
+const graph = createGraphMailboxClient({
+  baseUrl: resolveGraphBaseUrl(process.env),
+  fetchImpl: fetch,
+});
+
+if (process.env.MAIA_SPACELAB_DISABLE_POLL !== "1") {
+  startSpacelabMinutePoll({
+    pluginUrl,
+    pluginToken,
+    fetchImpl: fetch,
+    graph,
+  });
 }
 
-async function runReconcileForGuild(guildId, change) {
-  const rosterColumn = await fetchRosterColumn(guildId);
-  if (rosterColumn !== null) {
-    process.stdout.write(
-      `${JSON.stringify({ guildId, rosterColumn, change })}\n`,
-    );
-  }
+async function runCycleForGuild(guildId, options = {}) {
   try {
-    const result = await runSpacelabGuildReconcile({
-      pluginUrl,
-      pluginToken,
-      guildId,
-      fetchImpl: fetch,
+    const result = await runSpacelabGuildCycle({
+      config: {
+        pluginUrl,
+        pluginToken,
+        guildId,
+        fetchImpl: fetch,
+      },
+      graph,
+      forceFullPass: options.forceFullPass === true,
     });
     process.stdout.write(
-      `${JSON.stringify({ guildId, reconcile: result })}\n`,
+      `${JSON.stringify({ guildId, cycle: result })}\n`,
     );
   } catch (error) {
     process.stdout.write(
       `${JSON.stringify({
         guildId,
-        reconcile: {
+        cycle: {
           ok: false,
-          error: error instanceof Error ? error.message : "reconcile_failed",
+          error: error instanceof Error ? error.message : "cycle_failed",
         },
       })}\n`,
     );
@@ -79,6 +77,9 @@ rl.on("line", (line) => {
       return;
     }
     const change = message.change;
+    if (change === "disabled") {
+      return;
+    }
     if (
       change !== "enabled" &&
       change !== "values_saved" &&
@@ -86,6 +87,10 @@ rl.on("line", (line) => {
     ) {
       return;
     }
-    await runReconcileForGuild(message.guildId, change);
+    if (change === "adapt_roles_saved") {
+      await runCycleForGuild(message.guildId, { forceFullPass: true });
+      return;
+    }
+    await runCycleForGuild(message.guildId);
   })();
 });

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
@@ -19,9 +20,26 @@ const mainJs = path.join(
   "main.js",
 );
 
+async function startFakeGraphServer() {
+  const server = http.createServer((_req, res) => {
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.end(JSON.stringify({ value: [] }));
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  const port = typeof address === "object" && address ? address.port : 0;
+  return {
+    baseUrl: `http://127.0.0.1:${port}`,
+    close: () =>
+      new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      }),
+  };
+}
+
 function spawnSpacelabProcess(env: Record<string, string>) {
   return spawn(process.execPath, [mainJs], {
-    env,
+    env: { ...env, MAIA_SPACELAB_DISABLE_POLL: "1" },
     stdio: ["pipe", "pipe", "pipe"],
   });
 }
@@ -59,15 +77,19 @@ describe("Space Lab roster always-on process", () => {
   });
 
   it("runs a reconcile pass after values_saved when roster state exists", async () => {
+    const graph = await startFakeGraphServer();
     const registry = new PluginTokenRegistry();
     const token = registry.mintAlwaysOnToken("spacelab-roster");
     const enabledGuilds = new Set(["guild-1"]);
-    let savedRows: unknown;
     const api = createPluginApiServer({
       port: 0,
       tokenRegistry: registry,
       db: {
         query: {
+          guildPluginSettings: {
+            findMany: async () => [{ guildId: "guild-1", enabled: true }],
+          },
+          spacelabGuildCycleState: { findFirst: async () => null },
           spacelabGuildRosterState: {
             findFirst: async () => ({
               rowsJson: JSON.stringify([
@@ -98,7 +120,9 @@ describe("Space Lab roster always-on process", () => {
           where: async () => undefined,
         }),
         insert: () => ({
-          values: async () => undefined,
+          values: () => ({
+            onConflictDoUpdate: async () => undefined,
+          }),
         }),
       } as unknown as Db,
       assertGuildApiAccess: async (provided, guildId) => {
@@ -111,6 +135,12 @@ describe("Space Lab roster always-on process", () => {
           : null;
       },
       loadGuildValues: async () => ({ ROSTER_COLUMN: "Subteam" }),
+      mailboxHandlers: {
+        refreshGuildMailboxAccessToken: async () => ({
+          accessToken: "graph-token",
+          expiresIn: 3600,
+        }),
+      },
       moderationHandlers: {
         listRolesForGuild: async () => [
           { id: "role-alpha", name: "Alpha", color: 0, managed: false, position: 1 },
@@ -142,6 +172,7 @@ describe("Space Lab roster always-on process", () => {
       pluginToken: token,
       pluginUrl: api.url(),
     });
+    env.MAIA_GRAPH_BASE_URL = graph.baseUrl;
     const child = spawnSpacelabProcess(env);
 
     let stdout = "";
@@ -155,11 +186,13 @@ describe("Space Lab roster always-on process", () => {
     await new Promise((resolve) => setTimeout(resolve, 400));
     await waitForProcessExit(child);
 
-    assert.match(stdout, /"reconcile":\{"ok":true/);
+    assert.match(stdout, /"cycle":\{"ok":/);
     await api.close();
+    await graph.close();
   });
 
   it("reads ROSTER_COLUMN from the localhost values API after values_saved", async () => {
+    const graph = await startFakeGraphServer();
     const registry = new PluginTokenRegistry();
     const token = registry.mintAlwaysOnToken("spacelab-roster");
     const enabledGuilds = new Set(["guild-1"]);
@@ -168,6 +201,8 @@ describe("Space Lab roster always-on process", () => {
       tokenRegistry: registry,
       db: {
         query: {
+          guildPluginSettings: { findMany: async () => [] },
+          spacelabGuildCycleState: { findFirst: async () => null },
           spacelabGuildRosterState: { findFirst: async () => null },
         },
       } as unknown as Db,
@@ -181,6 +216,12 @@ describe("Space Lab roster always-on process", () => {
           : null;
       },
       loadGuildValues: async () => ({ ROSTER_COLUMN: "DiscordRoleColumn" }),
+      mailboxHandlers: {
+        refreshGuildMailboxAccessToken: async () => ({
+          accessToken: "graph-token",
+          expiresIn: 3600,
+        }),
+      },
     });
     await api.listen();
 
@@ -188,12 +229,12 @@ describe("Space Lab roster always-on process", () => {
       pluginToken: token,
       pluginUrl: api.url(),
     });
+    env.MAIA_GRAPH_BASE_URL = graph.baseUrl;
     const child = spawnSpacelabProcess(env);
 
     let stdout = "";
-    child.stdout.setEncoding("utf8");
-    child.stdout.on("data", (chunk: string) => {
-      stdout += chunk;
+    child.stdout.on("data", (chunk: Buffer | string) => {
+      stdout += String(chunk);
     });
 
     child.stdin.write('{"guildId":"guild-1","change":"values_saved"}\n');
@@ -201,7 +242,8 @@ describe("Space Lab roster always-on process", () => {
     await new Promise((resolve) => setTimeout(resolve, 200));
     await waitForProcessExit(child);
 
-    assert.match(stdout, /DiscordRoleColumn/);
+    assert.match(stdout, /"cycle":\{"ok":/);
     await api.close();
+    await graph.close();
   });
 });

@@ -18,6 +18,7 @@ import {
   tryHandlePluginMessagesRequest,
   type PluginMessageHandlers,
 } from "./plugin-api-messages.js";
+import { tryHandlePluginSpacelabEnabledGuildsRequest } from "./plugin-api-spacelab-enabled-guilds.js";
 import { tryHandlePluginSpacelabRosterRequest } from "./plugin-api-spacelab-roster.js";
 import {
   defaultPluginModerationHandlers,
@@ -93,6 +94,19 @@ export function createPluginApiServer(options: PluginApiServerOptions) {
   const server = http.createServer((req, res) => {
     void (async () => {
       const url = new URL(req.url ?? "/", `http://${host}`);
+
+      const enabledGuildsHandled =
+        await tryHandlePluginSpacelabEnabledGuildsRequest(
+          req,
+          res,
+          url,
+          options.db,
+          options.tokenRegistry,
+        );
+      if (enabledGuildsHandled) {
+        return;
+      }
+
       const guildId = extractGuildId(url.pathname);
       if (!guildId) {
         sendJson(res, 404, { error: "not_found" });

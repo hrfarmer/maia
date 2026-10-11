@@ -237,6 +237,22 @@ export const spacelabReconcileFailures = pgTable(
   (table) => [primaryKey({ columns: [table.guildId, table.memberKey] })],
 );
 
+export const spacelabGuildCycleState = pgTable("spacelab_guild_cycle_state", {
+  guildId: varchar("guild_id", { length: 20 })
+    .primaryKey()
+    .references(() => guilds.id, { onDelete: "cascade" }),
+  lastCycleAt: timestamp("last_cycle_at", { withTimezone: true }),
+  lastError: text("last_error"),
+  lastParsedMessageId: text("last_parsed_message_id"),
+  pendingArchiveMessageIdsJson: text("pending_archive_message_ids_json")
+    .notNull()
+    .default("[]"),
+  adaptLinksRevision: integer("adapt_links_revision").notNull().default(0),
+  lastProcessedAdaptLinksRevision: integer("last_processed_adapt_links_revision")
+    .notNull()
+    .default(0),
+});
+
 export const pluginGuildConfigNotifications = pgTable(
   "plugin_guild_config_notifications",
   {

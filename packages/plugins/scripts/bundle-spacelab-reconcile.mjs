@@ -7,7 +7,7 @@ const packageRoot = path.resolve(here, "..");
 const repoRoot = path.resolve(packageRoot, "../..");
 const entry = path.join(
   packageRoot,
-  "src/spacelab-roster/run-spacelab-reconcile.ts",
+  "src/spacelab-roster/bundled-entry.ts",
 );
 const outfile = path.join(
   repoRoot,

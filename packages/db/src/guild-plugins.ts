@@ -142,6 +142,19 @@ export async function listGuildPluginSettingsForGuild(db: Db, guildId: string) {
   });
 }
 
+export async function listEnabledGuildIdsForPlugin(
+  db: Db,
+  pluginId: string,
+): Promise<string[]> {
+  const rows = await db.query.guildPluginSettings.findMany({
+    where: and(
+      eq(guildPluginSettings.pluginId, pluginId),
+      eq(guildPluginSettings.enabled, true),
+    ),
+  });
+  return rows.map((row) => row.guildId).sort();
+}
+
 export async function upsertGuildPluginEnvValue(
   db: Db,
   input: {

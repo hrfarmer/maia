@@ -6,6 +6,7 @@ import {
 } from "@maia/plugins";
 import type { Db } from "@maia/db";
 import {
+  bumpSpacelabAdaptLinksRevision,
   clearSpacelabReconcileFailures,
   getSpacelabGuildRosterState,
   ingestSpacelabLabRosterMessage,
@@ -38,6 +39,7 @@ export interface SpacelabRosterRepository {
   getLinkedRoles(): Promise<Map<string, string>>;
   setLinkedRole(adaptValue: string, discordRoleId: string | null): Promise<void>;
   clearReconcileFailures?(): Promise<void>;
+  bumpAdaptLinksRevision?(): Promise<void>;
 }
 
 export function createDbSpacelabRosterRepository(
@@ -60,6 +62,9 @@ export function createDbSpacelabRosterRepository(
     },
     async clearReconcileFailures() {
       await clearSpacelabReconcileFailures(db, guildId);
+    },
+    async bumpAdaptLinksRevision() {
+      await bumpSpacelabAdaptLinksRevision(db, guildId);
     },
   };
 }
@@ -109,6 +114,7 @@ export async function saveSpacelabAdaptRoleLinks(
     await repo.setLinkedRole(adaptValue, discordRoleId);
   }
   await repo.clearReconcileFailures?.();
+  await repo.bumpAdaptLinksRevision?.();
 }
 
 export async function ingestSpacelabRosterMessageForGuild(
