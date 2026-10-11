@@ -41,6 +41,9 @@ services:
       DISCORD_TOKEN: ${DISCORD_TOKEN}
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
       DISCORD_DEV_GUILD_ID: ${DISCORD_DEV_GUILD_ID:-}
+      MAIA_PLUGINS_DIR: /app/plugins
+    volumes:
+      - maia_plugins:/app/plugins
     depends_on:
       postgres:
         condition: service_healthy
@@ -48,3 +51,4 @@ services:
 
 volumes:
   maia_pg:
+  maia_plugins:

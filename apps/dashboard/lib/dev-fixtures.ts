@@ -72,6 +72,46 @@ export const devAudit = [
   },
 ];
 
+export const devPluginScan = {
+  id: "dev-plugin-scan",
+  startedAt: "2026-10-09T10:00:00.000Z",
+  completedAt: "2026-10-09T10:00:01.000Z",
+  trigger: "startup" as const,
+  scanError: null,
+  plugins: [
+    {
+      id: "dev-plugin-always-on",
+      directoryName: "welcome-bot",
+      status: "ok" as const,
+      pluginId: "welcome-bot",
+      displayName: "Welcome bot",
+      lifetime: "always-on",
+      subscribedEvents: ["member.join"],
+      errorMessage: null,
+    },
+    {
+      id: "dev-plugin-invocation",
+      directoryName: "role-sync",
+      status: "ok" as const,
+      pluginId: "role-sync",
+      displayName: "Role sync",
+      lifetime: "invocation",
+      subscribedEvents: ["role.update"],
+      errorMessage: null,
+    },
+    {
+      id: "dev-plugin-error",
+      directoryName: "broken",
+      status: "error" as const,
+      pluginId: null,
+      displayName: null,
+      lifetime: null,
+      subscribedEvents: [],
+      errorMessage: "Missing maia-plugin.json",
+    },
+  ],
+};
+
 export function devHelpersEnabled() {
   return process.env.MAIA_ENABLE_DEV_HELPERS === "1";
 }

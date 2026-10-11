@@ -13,6 +13,8 @@ import {
 } from "@maia/db";
 import { commandsByName } from "./commands/index.js";
 import { isUserFacingError } from "./lib/errors.js";
+import { startPluginRefreshLoop } from "./plugins/refresh-loop.js";
+import { runPluginScan } from "./plugins/run-scan.js";
 
 const token = process.env.DISCORD_TOKEN;
 if (!token) {
@@ -125,6 +127,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
 });
 
 async function bootstrap() {
+  await runPluginScan(db, "startup");
+  startPluginRefreshLoop(db);
   await client.login(token);
 }
 

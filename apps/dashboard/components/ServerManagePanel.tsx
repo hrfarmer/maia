@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CustomCommandsPanel } from "@/components/CustomCommandsPanel";
+import { PluginsPanel } from "@/components/PluginsPanel";
 
 interface RoleRow {
   id: string;
@@ -373,6 +374,12 @@ export function ServerManagePanel({ guildId }: ServerManagePanelProps) {
             >
               Custom commands
             </TabsTrigger>
+            <TabsTrigger
+              value="plugins"
+              className="min-h-10 flex-none shrink-0 whitespace-nowrap px-3"
+            >
+              Plugins
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -687,6 +694,10 @@ export function ServerManagePanel({ guildId }: ServerManagePanelProps) {
 
         <TabsContent value="custom-commands">
           <CustomCommandsPanel guildId={guildId} />
+        </TabsContent>
+
+        <TabsContent value="plugins">
+          <PluginsPanel guildId={guildId} />
         </TabsContent>
 
         <TabsContent value="api-keys">
