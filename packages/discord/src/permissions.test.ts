@@ -20,6 +20,9 @@ function bitIndices(value: bigint): number[] {
 const REQUIRED_INVITE_FLAGS =
   PermissionFlagsBits.ViewChannel |
   PermissionFlagsBits.SendMessages |
+  PermissionFlagsBits.AddReactions |
+  PermissionFlagsBits.ReadMessageHistory |
+  PermissionFlagsBits.ManageMessages |
   PermissionFlagsBits.ManageRoles |
   PermissionFlagsBits.KickMembers |
   PermissionFlagsBits.BanMembers |
@@ -32,14 +35,29 @@ describe("BOT_INVITE_PERMISSIONS", () => {
   });
 
   it("has the exact permission integer", () => {
-    assert.equal(BOT_INVITE_PERMISSIONS, 1099914284038n);
-    assert.equal(BOT_INVITE_PERMISSIONS_STRING, "1099914284038");
+    assert.equal(BOT_INVITE_PERMISSIONS, 1099914357830n);
+    assert.equal(BOT_INVITE_PERMISSIONS_STRING, "1099914357830");
   });
 
   it("sets only the expected bit indices", () => {
     assert.deepEqual(bitIndices(BOT_INVITE_PERMISSIONS), [
       ...BOT_INVITE_PERMISSION_BITS,
     ]);
+  });
+
+  it("includes message moderation permissions", () => {
+    assert.notEqual(
+      BOT_INVITE_PERMISSIONS & PermissionFlagsBits.ReadMessageHistory,
+      0n,
+    );
+    assert.notEqual(
+      BOT_INVITE_PERMISSIONS & PermissionFlagsBits.AddReactions,
+      0n,
+    );
+    assert.notEqual(
+      BOT_INVITE_PERMISSIONS & PermissionFlagsBits.ManageMessages,
+      0n,
+    );
   });
 
   it("includes manage roles and manage nicknames", () => {

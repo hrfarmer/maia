@@ -7,8 +7,11 @@ export const Permission = {
   BanMembers: 1n << 2n,
   Administrator: 1n << 3n,
   ManageGuild: 1n << 5n,
+  AddReactions: 1n << 6n,
+  ManageMessages: 1n << 13n,
   ViewChannel: 1n << 10n,
   SendMessages: 1n << 11n,
+  ReadMessageHistory: 1n << 16n,
   ManageNicknames: 1n << 27n,
   ManageRoles: 1n << 28n,
   ModerateMembers: 1n << 40n,
@@ -31,6 +34,9 @@ export function parsePermissionBits(value: string | bigint): bigint {
 export const BOT_INVITE_PERMISSIONS =
   Permission.ViewChannel |
   Permission.SendMessages |
+  Permission.AddReactions |
+  Permission.ReadMessageHistory |
+  Permission.ManageMessages |
   Permission.ManageRoles |
   Permission.KickMembers |
   Permission.BanMembers |
@@ -42,5 +48,5 @@ export const BOT_INVITE_PERMISSIONS_STRING =
 
 /** Bit indices set in {@link BOT_INVITE_PERMISSIONS}. */
 export const BOT_INVITE_PERMISSION_BITS = [
-  1, 2, 10, 11, 27, 28, 40,
+  1, 2, 6, 10, 11, 13, 16, 27, 28, 40,
 ] as const;

@@ -293,3 +293,55 @@ export async function setMemberNickname(
     body: JSON.stringify({ nick, reason }),
   });
 }
+
+export interface DiscordGuildChannel {
+  id: string;
+  type: number;
+  name: string;
+  parent_id?: string | null;
+  permission_overwrites?: Array<{
+    id: string;
+    type: number;
+    allow: string;
+    deny: string;
+  }>;
+}
+
+export async function fetchGuildChannels(
+  guildId: string,
+): Promise<DiscordGuildChannel[]> {
+  return discordFetch<DiscordGuildChannel[]>(`/guilds/${guildId}/channels`);
+}
+
+export interface CreateChannelMessageInput {
+  content: string;
+  replyToMessageId?: string;
+  reason?: string;
+}
+
+export interface DiscordMessage {
+  id: string;
+  content?: string;
+}
+
+export async function createChannelMessage(
+  channelId: string,
+  input: CreateChannelMessageInput,
+): Promise<DiscordMessage> {
+  const payload: Record<string, unknown> = { content: input.content };
+  if (input.replyToMessageId) {
+    payload.message_reference = {
+      message_id: input.replyToMessageId,
+      fail_if_not_exists: false,
+    };
+  }
+  const headers: Record<string, string> = {};
+  if (input.reason) {
+    headers["X-Audit-Log-Reason"] = input.reason.slice(0, 512);
+  }
+  return discordFetch<DiscordMessage>(`/channels/${channelId}/messages`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+  });
+}

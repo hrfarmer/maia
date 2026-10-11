@@ -1,11 +1,6 @@
 import "./load-env.js";
-import {
-  Client,
-  Events,
-  GatewayIntentBits,
-  InteractionType,
-  REST,
-} from "discord.js";
+import { Client, Events, InteractionType, REST } from "discord.js";
+import { BOT_GATEWAY_INTENTS } from "./client-intents.js";
 import {
   getDb,
   getEnabledCustomCommandByName,
@@ -49,7 +44,7 @@ const slashContext: {
 };
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
+  intents: [...BOT_GATEWAY_INTENTS],
 });
 
 client.once(Events.ClientReady, async (readyClient) => {

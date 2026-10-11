@@ -138,13 +138,13 @@ docker compose up --build
 ## Discord Developer Portal
 
 1. Create an application at [Discord Developer Portal](https://discord.com/developers/applications).
-2. **Bot** tab: create a bot, copy the token → `DISCORD_TOKEN`. Enable privileged intents **Server Members Intent** (member search, role views, moderation via REST) and keep **Guilds** enabled.
+2. **Bot** tab: create a bot, copy the token → `DISCORD_TOKEN`. Enable privileged intents **Server Members Intent** (member search, role views, moderation via REST), **Message Content Intent** (message APIs and future message events), and keep **Guilds** enabled. The bot also requests **Guild Messages** and **Guild Message Reactions** (non-privileged gateway intents).
 3. **OAuth2** tab:
    - Redirect URIs:
      - `http://localhost:3000/api/auth/callback/discord`
      - `https://maia.aychar.dev/api/auth/callback/discord`
    - Scopes for dashboard login: `identify`, `guilds` (Auth.js requests `identify guilds`).
-4. **OAuth2 URL Generator** (for your own testing): scopes `bot`, `applications.commands`; bot permissions integer **1099914284038** (View Channel, Send Messages, Manage Roles, Kick Members, Ban Members, Moderate Members, Manage Nicknames — computed from `PermissionFlagsBits` in `@maia/discord`). The dashboard **Add Maia** link uses the same value.
+4. **OAuth2 URL Generator** (for your own testing): scopes `bot`, `applications.commands`; bot permissions integer **1099914357830** (View Channel, Send Messages, Read Message History, Add Reactions, Manage Messages, Manage Roles, Kick Members, Ban Members, Moderate Members, Manage Nicknames — computed from `PermissionFlagsBits` in `@maia/discord`). The dashboard **Add Maia** link uses the same value.
 5. Copy **Application ID** → `DISCORD_CLIENT_ID` and `NEXT_PUBLIC_DISCORD_CLIENT_ID`.
 6. Copy **Client Secret** → `DISCORD_CLIENT_SECRET`.
 7. After deploy, run `pnpm bot:deploy-commands` once so slash commands (`/hello`, `/role`, `/member`) are registered globally (or set `DISCORD_DEV_GUILD_ID` for a test server).
@@ -189,6 +189,8 @@ Local: `http://localhost:3000/api/v1/guilds/{guildId}`
 | `POST` | `/members/{userId}/timeout` | Timeout (`{ "minutes": 10, "reason": "optional" }`) |
 | `DELETE` | `/members/{userId}/timeout` | Remove timeout |
 | `PATCH` | `/members/{userId}/nickname` | `{ "nickname": "new" }` or `{ "nickname": null }` to clear |
+| `GET` | `/channels` | List plain-text channels Maia can view |
+| `POST` | `/channels/{channelId}/messages` | Send plain text (`{ "content": "…", "replyToMessageId": "optional" }`) |
 
 ### Examples
 
@@ -231,6 +233,15 @@ curl -sS -X POST -H "Authorization: Bearer $MAIA_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"minutes":30,"reason":"spam"}' \
   "https://maia.aychar.dev/api/v1/guilds/$GUILD_ID/members/$USER_ID/timeout"
+```
+
+Send a message (optional reply):
+
+```bash
+curl -sS -X POST -H "Authorization: Bearer $MAIA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"content":"Hello from Maia","replyToMessageId":"123456789012345678"}' \
+  "https://maia.aychar.dev/api/v1/guilds/$GUILD_ID/channels/$CHANNEL_ID/messages"
 ```
 
 ### Slash commands
