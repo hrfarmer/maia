@@ -16,6 +16,7 @@ import { isUserFacingError } from "./lib/errors.js";
 import { createPluginApiServer } from "./plugins/plugin-api-server.js";
 import { startPluginRefreshLoop } from "./plugins/refresh-loop.js";
 import { runPluginScan } from "./plugins/run-scan.js";
+import { startPluginCronLoop } from "./plugins/cron-loop.js";
 import { startPluginRuntimeLoop } from "./plugins/runtime-loop.js";
 import { PluginTokenRegistry } from "./plugins/token-registry.js";
 
@@ -155,6 +156,7 @@ async function bootstrap() {
     pluginApiUrl: pluginApi.url(),
     log: (line) => console.log(line),
   });
+  startPluginCronLoop(db);
 
   await client.login(token);
 }

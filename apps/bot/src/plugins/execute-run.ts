@@ -1,9 +1,10 @@
 import path from "node:path";
 import {
-  buildManualInvocationStdin,
+  buildInvocationStdin,
   buildPluginProcessEnvironment,
   resolvePluginsDirectory,
   runPluginProcess,
+  type PluginRunTrigger,
 } from "@maia/plugins";
 import {
   completePluginRunRequest,
@@ -27,6 +28,7 @@ export interface ExecutePluginRunInput {
   pluginApiUrl: string;
   tokenRegistry: PluginTokenRegistry;
   log: (line: string) => void;
+  trigger?: PluginRunTrigger;
 }
 
 export async function executePluginRun(input: ExecutePluginRunInput) {
@@ -66,6 +68,7 @@ export async function executePluginRun(input: ExecutePluginRunInput) {
   });
 
   const pluginId = input.plugin.pluginId;
+  const trigger: PluginRunTrigger = input.trigger ?? "run_now";
   let success = false;
   let errorMessage: string | undefined;
 
@@ -75,7 +78,7 @@ export async function executePluginRun(input: ExecutePluginRunInput) {
         cwd,
         command: input.plugin.command,
         env: processEnv,
-        stdin: buildManualInvocationStdin(input.guildId),
+        stdin: buildInvocationStdin(input.guildId, trigger),
         timeLimitMs,
       },
       {
@@ -107,7 +110,7 @@ export async function executePluginRun(input: ExecutePluginRunInput) {
     buildPluginRunAuditEntry({
       guildId: input.guildId,
       pluginId,
-      trigger: "run_now",
+      trigger,
       success,
       errorMessage,
     }),

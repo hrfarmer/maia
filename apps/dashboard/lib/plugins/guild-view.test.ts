@@ -25,6 +25,42 @@ describe("guild plugin view", () => {
     assert.equal(fields[1]?.hasSecretValue, true);
   });
 
+  it("shows cron control only for invocation plugins", () => {
+    const invocation = mergeGuildPluginRow({
+      plugin: {
+        id: "1",
+        directoryName: "role-sync",
+        status: "ok",
+        pluginId: "role-sync",
+        displayName: "Role sync",
+        lifetime: "invocation",
+        subscribedEvents: [],
+        errorMessage: null,
+        environment: [],
+      },
+      enabled: false,
+      storedValues: new Map(),
+    });
+    assert.equal(invocation.showCronControl, true);
+
+    const alwaysOn = mergeGuildPluginRow({
+      plugin: {
+        id: "2",
+        directoryName: "welcome-bot",
+        status: "ok",
+        pluginId: "welcome-bot",
+        displayName: "Welcome bot",
+        lifetime: "always-on",
+        subscribedEvents: [],
+        errorMessage: null,
+        environment: [],
+      },
+      enabled: false,
+      storedValues: new Map(),
+    });
+    assert.equal(alwaysOn.showCronControl, false);
+  });
+
   it("offers Run now only for enabled invocation plugins", () => {
     const enabled = mergeGuildPluginRow({
       plugin: {

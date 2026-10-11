@@ -1,5 +1,6 @@
 import {
   canEnableGuildPlugin,
+  isValidCronExpression,
   type PluginEnvironmentKey,
 } from "@maia/plugins";
 import {
@@ -8,6 +9,7 @@ import {
   getLatestPluginScan,
   listGuildPluginEnvValuesForGuild,
   listGuildPluginSettingsForGuild,
+  setGuildPluginCronExpression,
   setGuildPluginEnabled,
   upsertGuildPluginEnvValue,
   type Db,
@@ -27,6 +29,9 @@ export async function getGuildPluginsView(db: Db, guildId: string) {
 
   const enabledByPlugin = new Map(
     settings.map((row) => [row.pluginId, row.enabled]),
+  );
+  const cronByPlugin = new Map(
+    settings.map((row) => [row.pluginId, row.cronExpression ?? null]),
   );
   const valuesByPlugin = new Map<string, Map<string, string>>();
   for (const row of values) {
@@ -54,6 +59,9 @@ export async function getGuildPluginsView(db: Db, guildId: string) {
       storedValues: plugin.pluginId
         ? (valuesByPlugin.get(plugin.pluginId) ?? new Map())
         : new Map(),
+      cronExpression: plugin.pluginId
+        ? (cronByPlugin.get(plugin.pluginId) ?? null)
+        : null,
     }),
   );
 
@@ -67,6 +75,7 @@ export async function updateGuildPluginConfig(
   input: {
     enabled?: boolean;
     values?: Record<string, string | null>;
+    cronExpression?: string | null;
   },
 ) {
   const scan = await getLatestPluginScan(db);
@@ -95,6 +104,24 @@ export async function updateGuildPluginConfig(
 
   if (input.enabled === true && !canEnableGuildPlugin(environment, values)) {
     return { error: "All required environment keys must have values" as const };
+  }
+
+  if (input.cronExpression !== undefined) {
+    if (discovered.lifetime !== "invocation") {
+      return { error: "Cron is only available for invocation plugins" as const };
+    }
+    if (input.cronExpression === null || input.cronExpression.trim() === "") {
+      await setGuildPluginCronExpression(db, guildId, pluginId, null);
+    } else if (!isValidCronExpression(input.cronExpression)) {
+      return { error: "Invalid cron expression" as const };
+    } else {
+      await setGuildPluginCronExpression(
+        db,
+        guildId,
+        pluginId,
+        input.cronExpression.trim(),
+      );
+    }
   }
 
   for (const entry of environment) {

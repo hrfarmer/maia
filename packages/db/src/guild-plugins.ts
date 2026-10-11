@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, notInArray } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull, notInArray } from "drizzle-orm";
 import type { Db } from "./client.js";
 import {
   guildPluginEnvValues,
@@ -186,18 +186,82 @@ export async function setGuildPluginEnabled(
     });
 }
 
+export type PluginRunRequestTrigger = "run_now" | "cron";
+
 export async function enqueuePluginRun(
   db: Db,
   guildId: string,
   pluginId: string,
+  trigger: PluginRunRequestTrigger = "run_now",
 ): Promise<string> {
   const id = crypto.randomUUID();
   await db.insert(pluginRunRequests).values({
     id,
     guildId,
     pluginId,
+    trigger,
   });
   return id;
+}
+
+export interface GuildPluginCronTargetRow {
+  guildId: string;
+  pluginId: string;
+  cronExpression: string;
+  enabled: boolean;
+  lifetime: string;
+}
+
+export async function listGuildPluginCronTargetRows(
+  db: Db,
+): Promise<GuildPluginCronTargetRow[]> {
+  const plugins = await getLatestOkPluginsByPluginId(db);
+  const settings = await db.query.guildPluginSettings.findMany({
+    where: and(
+      eq(guildPluginSettings.enabled, true),
+      isNotNull(guildPluginSettings.cronExpression),
+    ),
+  });
+
+  const rows: GuildPluginCronTargetRow[] = [];
+  for (const setting of settings) {
+    const plugin = plugins.get(setting.pluginId);
+    if (!plugin || plugin.lifetime !== "invocation") {
+      continue;
+    }
+    const cronExpression = setting.cronExpression?.trim();
+    if (!cronExpression) {
+      continue;
+    }
+    rows.push({
+      guildId: setting.guildId,
+      pluginId: setting.pluginId,
+      cronExpression,
+      enabled: setting.enabled,
+      lifetime: plugin.lifetime,
+    });
+  }
+  return rows;
+}
+
+export async function setGuildPluginCronExpression(
+  db: Db,
+  guildId: string,
+  pluginId: string,
+  cronExpression: string | null,
+) {
+  await db
+    .insert(guildPluginSettings)
+    .values({
+      guildId,
+      pluginId,
+      enabled: false,
+      cronExpression,
+    })
+    .onConflictDoUpdate({
+      target: [guildPluginSettings.guildId, guildPluginSettings.pluginId],
+      set: { cronExpression },
+    });
 }
 
 export async function claimNextPluginRunRequest(db: Db) {

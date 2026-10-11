@@ -43,6 +43,13 @@
       "when": 1760500000000,
       "tag": "0005_plugin_guild_config",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1760600000000,
+      "tag": "0006_plugin_cron",
+      "breakpoints": true
     }
   ]
 }

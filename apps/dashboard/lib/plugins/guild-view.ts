@@ -25,6 +25,8 @@ export interface GuildPluginViewRow {
   enabled: boolean;
   canEnable: boolean;
   canRunNow: boolean;
+  showCronControl: boolean;
+  cronExpression: string | null;
 }
 
 export function buildGuildPluginEnvironmentFields(
@@ -66,6 +68,7 @@ export function mergeGuildPluginRow(input: {
   };
   enabled: boolean;
   storedValues: Map<string, string>;
+  cronExpression?: string | null;
 }): GuildPluginViewRow {
   const environmentKeys = input.plugin.environment ?? [];
   const environment = buildGuildPluginEnvironmentFields(
@@ -79,6 +82,8 @@ export function mergeGuildPluginRow(input: {
   const enabled = input.enabled && canEnable;
   const canRunNow =
     enabled && input.plugin.lifetime === "invocation" && input.plugin.status === "ok";
+  const showCronControl =
+    input.plugin.lifetime === "invocation" && input.plugin.status === "ok";
 
   return {
     id: input.plugin.id,
@@ -93,6 +98,8 @@ export function mergeGuildPluginRow(input: {
     enabled,
     canEnable,
     canRunNow,
+    showCronControl,
+    cronExpression: input.cronExpression ?? null,
   };
 }
 

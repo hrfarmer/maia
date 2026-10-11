@@ -26,6 +26,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   const body = (await request.json()) as {
     enabled?: boolean;
     values?: Record<string, string | null>;
+    cronExpression?: string | null;
   };
 
   const db = getDb();

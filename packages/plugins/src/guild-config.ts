@@ -56,7 +56,27 @@ export interface ManualInvocationStdin {
   trigger: "run_now";
 }
 
+export interface CronInvocationStdin {
+  guildId: string;
+  trigger: "cron";
+}
+
 export function buildManualInvocationStdin(guildId: string): string {
   const payload: ManualInvocationStdin = { guildId, trigger: "run_now" };
   return `${JSON.stringify(payload)}\n`;
+}
+
+export function buildCronInvocationStdin(guildId: string): string {
+  const payload: CronInvocationStdin = { guildId, trigger: "cron" };
+  return `${JSON.stringify(payload)}\n`;
+}
+
+export function buildInvocationStdin(
+  guildId: string,
+  trigger: PluginRunTrigger,
+): string {
+  if (trigger === "cron") {
+    return buildCronInvocationStdin(guildId);
+  }
+  return buildManualInvocationStdin(guildId);
 }

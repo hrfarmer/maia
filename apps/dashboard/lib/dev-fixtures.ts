@@ -134,6 +134,8 @@ export const devGuildPlugins = [
     enabled: false,
     canEnable: true,
     canRunNow: false,
+    showCronControl: false,
+    cronExpression: null,
   },
   {
     id: "dev-plugin-invocation",
@@ -163,6 +165,8 @@ export const devGuildPlugins = [
     enabled: true,
     canEnable: true,
     canRunNow: true,
+    showCronControl: true,
+    cronExpression: "0 9 * * *",
   },
   {
     id: "dev-plugin-error",
@@ -177,5 +181,7 @@ export const devGuildPlugins = [
     enabled: false,
     canEnable: false,
     canRunNow: false,
+    showCronControl: false,
+    cronExpression: null,
   },
 ];
