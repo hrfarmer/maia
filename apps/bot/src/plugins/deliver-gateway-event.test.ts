@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { Db, LatestRunnablePlugin } from "@maia/db";
 import { AlwaysOnSupervisor } from "./always-on-supervisor.js";
-import { deliverMemberRoleGatewayEvent } from "./deliver-gateway-event.js";
+import {
+  deliverAlwaysOnGatewayEvent,
+  deliverMemberRoleGatewayEvent,
+} from "./deliver-gateway-event.js";
 import { executePluginEventRun } from "./execute-event-run.js";
 import { PluginEventInvocationConcurrency } from "./event-invocation-concurrency.js";
 import { PluginTokenRegistry } from "./token-registry.js";
@@ -38,6 +41,149 @@ function alwaysOnPlugin(
     ...overrides,
   };
 }
+
+describe("deliverAlwaysOnGatewayEvent", () => {
+  it("writes stdin for a subscribed enabled always-on plugin with message content", async () => {
+    const stdinLines: string[] = [];
+    const supervisor = new AlwaysOnSupervisor({
+      db: {} as Db,
+      tokenRegistry: new PluginTokenRegistry(),
+      pluginApiUrl: "http://127.0.0.1:3847",
+      listAlwaysOnPlugins: async () => [
+        alwaysOnPlugin({ subscribedEvents: ["message.created"] }),
+      ],
+      spawnSupervised: () => ({
+        writeStdin(line: string) {
+          stdinLines.push(line);
+        },
+        kill() {},
+        waitForExit: () => new Promise(() => {}),
+      }),
+    });
+    await supervisor.syncFromLatestScan({ restartExisting: false });
+
+    await deliverAlwaysOnGatewayEvent({
+      db: {} as Db,
+      guildId: "111",
+      event: "message.created",
+      payload: { id: "m1", content: "hi there" },
+      alwaysOnSupervisor: supervisor,
+      getPlugins: async () =>
+        new Map([
+          [
+            "ao",
+            alwaysOnPlugin({ subscribedEvents: ["message.created"] }),
+          ],
+        ]),
+      listSettings: async () => [
+        {
+          guildId: "111",
+          pluginId: "ao",
+          enabled: true,
+          cronExpression: null,
+          slashCommandsEnabled: false,
+          slashPublishError: null,
+          slashCollisionNotes: null,
+        },
+      ],
+    });
+
+    assert.equal(stdinLines.length, 1);
+    const parsed = JSON.parse(stdinLines[0] ?? "") as {
+      guildId: string;
+      event: string;
+      payload: { content: string };
+    };
+    assert.equal(parsed.guildId, "111");
+    assert.equal(parsed.event, "message.created");
+    assert.equal(parsed.payload.content, "hi there");
+    await supervisor.shutdown();
+  });
+
+  it("does not start invocation for subscribed invocation plugins", async () => {
+    let runs = 0;
+    await deliverAlwaysOnGatewayEvent({
+      db: {} as Db,
+      guildId: "111",
+      event: "message.created",
+      payload: {},
+      alwaysOnSupervisor: new AlwaysOnSupervisor({
+        db: {} as Db,
+        tokenRegistry: new PluginTokenRegistry(),
+        pluginApiUrl: "http://127.0.0.1:3847",
+        listAlwaysOnPlugins: async () => [],
+        spawnSupervised: () => ({
+          writeStdin() {},
+          kill() {},
+          waitForExit: () => new Promise(() => {}),
+        }),
+      }),
+      getPlugins: async () =>
+        new Map([
+          [
+            "inv",
+            invocationPlugin({ subscribedEvents: ["message.created"] }),
+          ],
+        ]),
+      listSettings: async () => [
+        {
+          guildId: "111",
+          pluginId: "inv",
+          enabled: true,
+          cronExpression: null,
+          slashCommandsEnabled: false,
+          slashPublishError: null,
+          slashCollisionNotes: null,
+        },
+      ],
+    });
+    assert.equal(runs, 0);
+  });
+
+  it("skips disabled guilds and unsubscribed always-on plugins", async () => {
+    const stdinLines: string[] = [];
+    const supervisor = new AlwaysOnSupervisor({
+      db: {} as Db,
+      tokenRegistry: new PluginTokenRegistry(),
+      pluginApiUrl: "http://127.0.0.1:3847",
+      listAlwaysOnPlugins: async () => [],
+      spawnSupervised: () => ({
+        writeStdin(line: string) {
+          stdinLines.push(line);
+        },
+        kill() {},
+        waitForExit: () => new Promise(() => {}),
+      }),
+    });
+
+    await deliverAlwaysOnGatewayEvent({
+      db: {} as Db,
+      guildId: "111",
+      event: "reaction.added",
+      payload: {},
+      alwaysOnSupervisor: supervisor,
+      getPlugins: async () =>
+        new Map([
+          [
+            "ao",
+            alwaysOnPlugin({ subscribedEvents: ["reaction.removed"] }),
+          ],
+        ]),
+      listSettings: async () => [
+        {
+          guildId: "111",
+          pluginId: "ao",
+          enabled: false,
+          cronExpression: null,
+          slashCommandsEnabled: false,
+          slashPublishError: null,
+          slashCollisionNotes: null,
+        },
+      ],
+    });
+    assert.equal(stdinLines.length, 0);
+  });
+});
 
 describe("deliverMemberRoleGatewayEvent", () => {
   it("starts an invocation run for a subscribed enabled plugin", async () => {
