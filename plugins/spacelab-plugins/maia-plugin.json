@@ -1,0 +1,14 @@
+{
+  "id": "spacelab-roster",
+  "name": "Space Lab roster",
+  "lifetime": "always-on",
+  "subscribedEvents": [],
+  "command": ["node", "main.js"],
+  "environment": [
+    {
+      "key": "ROSTER_COLUMN",
+      "required": true,
+      "secret": false
+    }
+  ]
+}

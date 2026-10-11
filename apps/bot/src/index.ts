@@ -12,6 +12,7 @@ import {
   recordGuildLeave,
   resolvePluginSlashCommand,
 } from "@maia/db";
+import { syncShippedSpacelabPlugin } from "@maia/plugins";
 import { commandsByName } from "./commands/index.js";
 import { isUserFacingError } from "./lib/errors.js";
 import { AlwaysOnSupervisor } from "./plugins/always-on-supervisor.js";
@@ -219,6 +220,8 @@ async function bootstrap() {
   slashContext.alwaysOnSupervisor = alwaysOnSupervisor;
 
   const rest = new REST({ version: "10" }).setToken(token);
+
+  await syncShippedSpacelabPlugin();
 
   await runPluginScan(db, "startup", {
     afterScan: async () => {

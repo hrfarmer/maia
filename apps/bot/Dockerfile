@@ -23,8 +23,10 @@ RUN pnpm --filter @maia/discord build && pnpm --filter @maia/plugins build && pn
 
 FROM base AS runner
 ENV NODE_ENV=production
+ENV MAIA_SHIPPED_PLUGINS_DIR=/app/shipped-plugins
 WORKDIR /app
-RUN mkdir -p /app/plugins
+RUN mkdir -p /app/plugins /app/shipped-plugins
+COPY --from=build /app/plugins/spacelab-plugins /app/shipped-plugins/spacelab-plugins
 COPY --from=build /app/package.json /app/pnpm-workspace.yaml /app/pnpm-lock.yaml ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/packages/discord ./packages/discord
