@@ -12,8 +12,9 @@ CREATE TABLE IF NOT EXISTS "discovered_plugins" (
 	"directory_name" text NOT NULL,
 	"status" varchar(16) NOT NULL,
 	"plugin_id" text,
-	"name" text,
-	"version" text,
+	"display_name" text,
+	"lifetime" varchar(16),
+	"subscribed_events" text,
 	"error_message" text
 );
 --> statement-breakpoint

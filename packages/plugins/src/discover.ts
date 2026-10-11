@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import {
+  PLUGIN_ID_CLASH_ERROR,
   PLUGIN_MANIFEST_FILENAME,
   parsePluginManifest,
   type PluginManifest,
@@ -13,18 +14,19 @@ export interface DiscoveredPluginEntry {
   directoryName: string;
   status: DiscoveredPluginStatus;
   manifest: PluginManifest | null;
+  pluginId: string | null;
   errorMessage: string | null;
 }
 
 export interface DiscoverPluginsOptions {
   pluginsDir?: string;
-  readFile?: typeof fs.readFile;
-  readdir?: typeof fs.readdir;
-  stat?: typeof fs.stat;
+  readFile?: (path: string) => Promise<string>;
+  readdir?: (path: string) => Promise<string[]>;
+  stat?: (path: string) => Promise<{ isDirectory(): boolean }>;
 }
 
 async function isDirectory(
-  statFn: typeof fs.stat,
+  statFn: (path: string) => Promise<{ isDirectory(): boolean }>,
   fullPath: string,
 ): Promise<boolean> {
   try {
@@ -35,13 +37,41 @@ async function isDirectory(
   }
 }
 
+function applyPluginIdClashes(entries: DiscoveredPluginEntry[]) {
+  const byId = new Map<string, DiscoveredPluginEntry[]>();
+  for (const entry of entries) {
+    if (!entry.pluginId) {
+      continue;
+    }
+    const group = byId.get(entry.pluginId) ?? [];
+    group.push(entry);
+    byId.set(entry.pluginId, group);
+  }
+
+  for (const [pluginId, group] of byId) {
+    if (group.length < 2) {
+      continue;
+    }
+    for (const entry of group) {
+      entry.status = "error";
+      entry.manifest = null;
+      entry.errorMessage = `${PLUGIN_ID_CLASH_ERROR}: ${pluginId}`;
+    }
+  }
+}
+
 export async function discoverPlugins(
   options: DiscoverPluginsOptions = {},
 ): Promise<DiscoveredPluginEntry[]> {
   const pluginsDir = options.pluginsDir ?? resolvePluginsDirectory();
-  const readFile = options.readFile ?? fs.readFile;
-  const readdir = options.readdir ?? fs.readdir;
-  const stat = options.stat ?? fs.stat;
+  const readFile =
+    options.readFile ??
+    (async (filePath: string) => fs.readFile(filePath, "utf8"));
+  const readdir =
+    options.readdir ?? (async (dirPath: string) => fs.readdir(dirPath));
+  const stat =
+    options.stat ??
+    (async (filePath: string) => fs.stat(filePath));
 
   let entries: string[];
   try {
@@ -73,7 +103,7 @@ export async function discoverPlugins(
       PLUGIN_MANIFEST_FILENAME,
     );
     try {
-      const rawText = await readFile(manifestPath, "utf8");
+      const rawText = await readFile(manifestPath);
       let parsed: unknown;
       try {
         parsed = JSON.parse(rawText);
@@ -82,16 +112,29 @@ export async function discoverPlugins(
           directoryName,
           status: "error",
           manifest: null,
+          pluginId: null,
           errorMessage: `${PLUGIN_MANIFEST_FILENAME} is not valid JSON`,
         });
         continue;
       }
+
+      let pluginId: string | null = null;
+      if (
+        parsed !== null &&
+        typeof parsed === "object" &&
+        !Array.isArray(parsed) &&
+        typeof (parsed as Record<string, unknown>).id === "string"
+      ) {
+        pluginId = (parsed as Record<string, string>).id;
+      }
+
       try {
         const manifest = parsePluginManifest(parsed);
         results.push({
           directoryName,
           status: "ok",
           manifest,
+          pluginId: manifest.id,
           errorMessage: null,
         });
       } catch (error) {
@@ -101,6 +144,7 @@ export async function discoverPlugins(
           directoryName,
           status: "error",
           manifest: null,
+          pluginId,
           errorMessage: message,
         });
       }
@@ -111,6 +155,7 @@ export async function discoverPlugins(
           directoryName,
           status: "error",
           manifest: null,
+          pluginId: null,
           errorMessage: `Missing ${PLUGIN_MANIFEST_FILENAME}`,
         });
         continue;
@@ -121,10 +166,12 @@ export async function discoverPlugins(
         directoryName,
         status: "error",
         manifest: null,
+        pluginId: null,
         errorMessage: message,
       });
     }
   }
 
+  applyPluginIdClashes(results);
   return results;
 }

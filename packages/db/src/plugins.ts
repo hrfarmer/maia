@@ -13,8 +13,9 @@ export interface DiscoveredPluginRecord {
   directoryName: string;
   status: "ok" | "error";
   pluginId: string | null;
-  name: string | null;
-  version: string | null;
+  displayName: string | null;
+  lifetime: string | null;
+  subscribedEvents: string[];
   errorMessage: string | null;
 }
 
@@ -31,8 +32,9 @@ export interface PersistDiscoveredPluginInput {
   directoryName: string;
   status: "ok" | "error";
   pluginId?: string | null;
-  name?: string | null;
-  version?: string | null;
+  displayName?: string | null;
+  lifetime?: string | null;
+  subscribedEvents?: string[];
   errorMessage?: string | null;
 }
 
@@ -98,8 +100,9 @@ export async function persistPluginScan(
         directoryName: plugin.directoryName,
         status: plugin.status,
         pluginId: plugin.pluginId ?? null,
-        name: plugin.name ?? null,
-        version: plugin.version ?? null,
+        displayName: plugin.displayName ?? null,
+        lifetime: plugin.lifetime ?? null,
+        subscribedEvents: JSON.stringify(plugin.subscribedEvents ?? []),
         errorMessage: plugin.errorMessage ?? null,
       })),
     );
@@ -116,11 +119,26 @@ export async function persistPluginScan(
       directoryName: plugin.directoryName,
       status: plugin.status,
       pluginId: plugin.pluginId ?? null,
-      name: plugin.name ?? null,
-      version: plugin.version ?? null,
+      displayName: plugin.displayName ?? null,
+      lifetime: plugin.lifetime ?? null,
+      subscribedEvents: plugin.subscribedEvents ?? [],
       errorMessage: plugin.errorMessage ?? null,
     })),
   };
+}
+
+function parseSubscribedEvents(raw: string | null): string[] {
+  if (!raw) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed)
+      ? parsed.filter((item): item is string => typeof item === "string")
+      : [];
+  } catch {
+    return [];
+  }
 }
 
 export async function getLatestPluginScan(
@@ -152,8 +170,9 @@ export async function getLatestPluginScan(
       directoryName: plugin.directoryName,
       status: plugin.status as "ok" | "error",
       pluginId: plugin.pluginId,
-      name: plugin.name,
-      version: plugin.version,
+      displayName: plugin.displayName,
+      lifetime: plugin.lifetime,
+      subscribedEvents: parseSubscribedEvents(plugin.subscribedEvents),
       errorMessage: plugin.errorMessage,
     })),
   };

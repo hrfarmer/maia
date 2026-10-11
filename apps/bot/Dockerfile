@@ -21,7 +21,6 @@ RUN pnpm --filter @maia/discord build && pnpm --filter @maia/db build && pnpm --
 
 FROM base AS runner
 ENV NODE_ENV=production
-ENV MAIA_DOCKER=1
 WORKDIR /app
 RUN mkdir -p /app/plugins
 COPY --from=build /app/package.json /app/pnpm-workspace.yaml /app/pnpm-lock.yaml ./

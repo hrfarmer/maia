@@ -18,8 +18,9 @@ interface PluginRow {
   directoryName: string;
   status: "ok" | "error";
   pluginId: string | null;
-  name: string | null;
-  version: string | null;
+  displayName: string | null;
+  lifetime: string | null;
+  subscribedEvents: string[];
   errorMessage: string | null;
 }
 
@@ -38,6 +39,13 @@ function formatTimestamp(value: string | null) {
     return "—";
   }
   return new Date(value).toLocaleString();
+}
+
+function formatEvents(events: string[]) {
+  if (events.length === 0) {
+    return "—";
+  }
+  return events.join(", ");
 }
 
 export function PluginsPanel({ guildId }: PluginsPanelProps) {
@@ -133,26 +141,33 @@ export function PluginsPanel({ guildId }: PluginsPanelProps) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Folder</TableHead>
+              <TableHead>Display name</TableHead>
+              <TableHead>Lifetime</TableHead>
+              <TableHead>Subscribed events</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>ID</TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead>Version</TableHead>
               <TableHead>Error</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {scan.plugins.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-muted-foreground">
+                <TableCell colSpan={5} className="text-muted-foreground">
                   No plugins found.
                 </TableCell>
               </TableRow>
             ) : (
               scan.plugins.map((plugin) => (
                 <TableRow key={plugin.id || plugin.directoryName}>
-                  <TableCell className="font-mono text-xs sm:text-sm">
-                    {plugin.directoryName}
+                  <TableCell className="font-medium">
+                    {plugin.status === "ok"
+                      ? (plugin.displayName ?? plugin.pluginId ?? "—")
+                      : "—"}
+                  </TableCell>
+                  <TableCell>{plugin.lifetime ?? "—"}</TableCell>
+                  <TableCell className="max-w-[14rem] whitespace-normal text-xs sm:max-w-md sm:text-sm">
+                    {plugin.status === "ok"
+                      ? formatEvents(plugin.subscribedEvents)
+                      : "—"}
                   </TableCell>
                   <TableCell>
                     <Badge
@@ -162,13 +177,10 @@ export function PluginsPanel({ guildId }: PluginsPanelProps) {
                         plugin.status === "ok" ? "bg-secondary" : undefined,
                       )}
                     >
-                      {plugin.status}
+                      {plugin.status === "ok" ? "runnable" : "error"}
                     </Badge>
                   </TableCell>
-                  <TableCell>{plugin.pluginId ?? "—"}</TableCell>
-                  <TableCell>{plugin.name ?? "—"}</TableCell>
-                  <TableCell>{plugin.version ?? "—"}</TableCell>
-                  <TableCell className="max-w-[12rem] truncate text-destructive sm:max-w-xs">
+                  <TableCell className="max-w-[12rem] whitespace-normal text-destructive sm:max-w-xs">
                     {plugin.errorMessage ?? "—"}
                   </TableCell>
                 </TableRow>

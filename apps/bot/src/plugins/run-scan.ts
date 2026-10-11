@@ -14,9 +14,10 @@ export async function runPluginScan(db: Db, trigger: PluginScanTrigger) {
       plugins: discovered.map((entry) => ({
         directoryName: entry.directoryName,
         status: entry.status,
-        pluginId: entry.manifest?.id ?? null,
-        name: entry.manifest?.name ?? null,
-        version: entry.manifest?.version ?? null,
+        pluginId: entry.manifest?.id ?? entry.pluginId,
+        displayName: entry.manifest?.name ?? null,
+        lifetime: entry.manifest?.lifetime ?? null,
+        subscribedEvents: entry.manifest?.subscribedEvents ?? [],
         errorMessage: entry.errorMessage,
       })),
     });

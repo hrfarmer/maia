@@ -23,8 +23,9 @@ function serializeScan(scan: Awaited<ReturnType<typeof getLatestPluginScan>>) {
       directoryName: plugin.directoryName,
       status: plugin.status,
       pluginId: plugin.pluginId,
-      name: plugin.name,
-      version: plugin.version,
+      displayName: plugin.displayName,
+      lifetime: plugin.lifetime,
+      subscribedEvents: plugin.subscribedEvents,
       errorMessage: plugin.errorMessage,
     })),
   };

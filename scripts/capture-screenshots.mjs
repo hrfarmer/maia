@@ -48,14 +48,13 @@ async function captureCustomCommandsTab(page, outputPath) {
 async function capturePluginsTab(page, outputPath) {
   await page.getByRole("tab", { name: "Plugins" }).click();
   await page.waitForSelector('[data-testid="plugins-table"]');
-  await page
-    .locator('[data-testid="plugins-table"]')
-    .getByRole("cell", { name: "broken", exact: true })
-    .waitFor({ timeout: 15_000 });
-  await page
-    .locator('[data-testid="plugins-table"]')
-    .getByRole("cell", { name: "Welcome", exact: true })
-    .waitFor({ timeout: 15_000 });
+  await page.getByRole("cell", { name: "Welcome bot", exact: true }).waitFor({
+    timeout: 15_000,
+  });
+  await page.getByRole("cell", { name: "Role sync", exact: true }).waitFor({
+    timeout: 15_000,
+  });
+  await page.getByText("Missing maia-plugin.json").waitFor({ timeout: 15_000 });
   await page.screenshot({
     path: outputPath,
     fullPage: true,
