@@ -91,6 +91,17 @@ export {
   type MaiaPluginClientConfig,
 } from "./spacelab-roster/maia-discord-role-api.js";
 export { runSpacelabGuildReconcile } from "./spacelab-roster/run-spacelab-reconcile.js";
+export { runSpacelabGuildCycle } from "./spacelab-roster/run-spacelab-guild-cycle.js";
+export {
+  startSpacelabMinutePoll,
+  SPACELAB_POLL_INTERVAL_MS,
+} from "./spacelab-roster/spacelab-minute-poll.js";
+export {
+  createGraphMailboxClient,
+  resolveGraphBaseUrl,
+  type GraphMailboxClient,
+  type GraphMailboxMessage,
+} from "./spacelab-roster/graph-mailbox.js";
 export {
   SYNTHETIC_LAB_ROSTER_EXPORT,
   SYNTHETIC_LAB_ROSTER_EXPORT_INVALID_ROW,

@@ -45,6 +45,8 @@ describe("Space Lab roster shipped plugin", () => {
       `${pathToFileURL(reconcilePath).href}?t=${Date.now()}`
     );
     assert.equal(typeof mod.runSpacelabGuildReconcile, "function");
+    assert.equal(typeof mod.runSpacelabGuildCycle, "function");
+    assert.equal(typeof mod.startSpacelabMinutePoll, "function");
   });
 
   it("is discovered without executing the plugin command", async () => {
