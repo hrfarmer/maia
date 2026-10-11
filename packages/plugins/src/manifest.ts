@@ -2,6 +2,10 @@ import {
   INVOCATION_FORBIDDEN_EVENTS,
   isKnownPluginEvent,
 } from "./events.js";
+import {
+  parsePluginSlashCommands,
+  type PluginSlashCommand,
+} from "./slash-commands.js";
 
 export const PLUGIN_MANIFEST_FILENAME = "maia-plugin.json";
 
@@ -31,6 +35,7 @@ export interface PluginManifest {
   invocationTimeLimitMs: number | null;
   /** Invocation-only cap for concurrent member/role event processes; default 8. */
   maxConcurrentInvocations: number | null;
+  slashCommands: PluginSlashCommand[];
 }
 
 export class PluginManifestError extends Error {
@@ -196,6 +201,7 @@ export function parsePluginManifest(raw: unknown): PluginManifest {
     record.maxConcurrentInvocations,
     lifetime,
   );
+  const slashCommands = parsePluginSlashCommands(record.slashCommands);
 
   if (
     lifetime === "invocation" &&
@@ -215,6 +221,7 @@ export function parsePluginManifest(raw: unknown): PluginManifest {
     environment,
     invocationTimeLimitMs,
     maxConcurrentInvocations,
+    slashCommands,
   };
 }
 

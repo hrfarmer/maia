@@ -27,6 +27,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     enabled?: boolean;
     values?: Record<string, string | null>;
     cronExpression?: string | null;
+    slashCommandsEnabled?: boolean;
   };
 
   const db = getDb();

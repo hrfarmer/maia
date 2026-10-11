@@ -136,6 +136,11 @@ export const devGuildPlugins = [
     canRunNow: false,
     showCronControl: false,
     cronExpression: null,
+    slashCommands: [],
+    slashCommandsEnabled: false,
+    showSlashControl: false,
+    slashPublishError: null,
+    slashCollisionNotes: [],
   },
   {
     id: "dev-plugin-invocation",
@@ -167,6 +172,24 @@ export const devGuildPlugins = [
     canRunNow: true,
     showCronControl: true,
     cronExpression: "0 9 * * *",
+    slashCommands: [
+      {
+        name: "sync-roles",
+        description: "Sync roles from webhook",
+        visibility: "ephemeral" as const,
+        defaultPermission: null,
+        options: [],
+      },
+    ],
+    slashCommandsEnabled: true,
+    showSlashControl: true,
+    slashPublishError: null,
+    slashCollisionNotes: [
+      {
+        name: "hello",
+        reason: "Name conflicts with the built-in /hello command.",
+      },
+    ],
   },
   {
     id: "dev-plugin-error",
@@ -183,5 +206,10 @@ export const devGuildPlugins = [
     canRunNow: false,
     showCronControl: false,
     cronExpression: null,
+    slashCommands: [],
+    slashCommandsEnabled: false,
+    showSlashControl: false,
+    slashPublishError: null,
+    slashCollisionNotes: [],
   },
 ];

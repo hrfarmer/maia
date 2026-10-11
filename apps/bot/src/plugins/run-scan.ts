@@ -1,16 +1,24 @@
 import { discoverPlugins } from "@maia/plugins";
 import {
   clearPluginRefreshRequest,
+  getActiveGuildIds,
+  listGuildPluginSettingsForGuild,
   persistPluginScan,
   pruneGuildPluginConfigForRemovedPlugins,
   type Db,
   type PluginScanTrigger,
 } from "@maia/db";
+import type { REST } from "discord.js";
+import { syncGuildApplicationCommandsFromBot } from "./guild-command-sync.js";
 
 export async function runPluginScan(
   db: Db,
   trigger: PluginScanTrigger,
-  hooks?: { afterScan?: () => Promise<void> },
+  hooks?: {
+    afterScan?: () => Promise<void>;
+    rest?: REST;
+    republishSlashCommands?: boolean;
+  },
 ) {
   try {
     const discovered = await discoverPlugins();
@@ -32,6 +40,7 @@ export async function runPluginScan(
         invocationTimeLimitMs: entry.manifest?.invocationTimeLimitMs ?? null,
         maxConcurrentInvocations:
           entry.manifest?.maxConcurrentInvocations ?? null,
+        slashCommands: entry.manifest?.slashCommands ?? null,
       })),
     });
     await pruneGuildPluginConfigForRemovedPlugins(db, activePluginIds);
@@ -51,5 +60,12 @@ export async function runPluginScan(
 
   if (hooks?.afterScan) {
     await hooks.afterScan();
+  }
+
+  if (hooks?.republishSlashCommands && hooks.rest) {
+    const guildIds = await getActiveGuildIds(db);
+    for (const guildId of guildIds) {
+      await syncGuildApplicationCommandsFromBot(db, guildId, hooks.rest);
+    }
   }
 }

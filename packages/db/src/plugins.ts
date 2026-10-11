@@ -1,4 +1,5 @@
 import { desc, eq } from "drizzle-orm";
+import type { PluginSlashCommand } from "@maia/plugins";
 import type { Db } from "./client.js";
 import {
   botRuntimeState,
@@ -25,6 +26,7 @@ export interface DiscoveredPluginRecord {
   }> | null;
   invocationTimeLimitMs: number | null;
   maxConcurrentInvocations: number | null;
+  slashCommands: PluginSlashCommand[] | null;
 }
 
 export interface PluginScanRecord {
@@ -52,6 +54,7 @@ export interface PersistDiscoveredPluginInput {
   }> | null;
   invocationTimeLimitMs?: number | null;
   maxConcurrentInvocations?: number | null;
+  slashCommands?: PluginSlashCommand[] | null;
 }
 
 const BOT_STATE_ID = "default";
@@ -128,6 +131,9 @@ export async function persistPluginScan(
           : null,
         invocationTimeLimitMs: plugin.invocationTimeLimitMs ?? null,
         maxConcurrentInvocations: plugin.maxConcurrentInvocations ?? null,
+        slashCommandsJson: plugin.slashCommands
+          ? JSON.stringify(plugin.slashCommands)
+          : null,
       })),
     );
   }
@@ -151,6 +157,7 @@ export async function persistPluginScan(
       environment: plugin.environment ?? null,
       invocationTimeLimitMs: plugin.invocationTimeLimitMs ?? null,
       maxConcurrentInvocations: plugin.maxConcurrentInvocations ?? null,
+      slashCommands: plugin.slashCommands ?? null,
     })),
   };
 }
@@ -206,8 +213,26 @@ export async function getLatestPluginScan(
       environment: parseEnvironmentJson(plugin.environmentJson),
       invocationTimeLimitMs: plugin.invocationTimeLimitMs,
       maxConcurrentInvocations: plugin.maxConcurrentInvocations,
+      slashCommands: parseSlashCommandsJson(plugin.slashCommandsJson),
     })),
   };
+}
+
+function parseSlashCommandsJson(
+  raw: string | null,
+): PluginSlashCommand[] | null {
+  if (!raw) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) {
+      return null;
+    }
+    return parsed as PluginSlashCommand[];
+  } catch {
+    return null;
+  }
 }
 
 function parseJsonStringArray(raw: string | null): string[] | null {

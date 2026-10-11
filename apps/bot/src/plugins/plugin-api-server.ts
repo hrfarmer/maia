@@ -13,6 +13,7 @@ import {
   tryHandlePluginModerationRequest,
   type PluginModerationHandlers,
 } from "./plugin-api-moderation.js";
+import type { SlashReplyRegistry } from "./slash-reply-registry.js";
 import type { PluginTokenRegistry } from "./token-registry.js";
 
 export interface PluginApiServerOptions {
@@ -29,6 +30,7 @@ export interface PluginApiServerOptions {
     pluginId: string,
   ) => Promise<Record<string, string>>;
   moderationHandlers?: PluginModerationHandlers;
+  slashReplies?: SlashReplyRegistry;
 }
 
 function sendJson(
@@ -80,9 +82,11 @@ export function createPluginApiServer(options: PluginApiServerOptions) {
 
       const pingMatch = url.pathname === `/v1/guilds/${guildId}/ping`;
       const valuesMatch = url.pathname === `/v1/guilds/${guildId}/values`;
+      const slashReplyMatch = url.pathname === `/v1/guilds/${guildId}/slash-reply`;
       const needsAuth =
         pingMatch ||
         valuesMatch ||
+        slashReplyMatch ||
         url.pathname.startsWith(`/v1/guilds/${guildId}/`);
 
       if (!needsAuth) {
@@ -108,6 +112,40 @@ export function createPluginApiServer(options: PluginApiServerOptions) {
       if (valuesMatch && req.method === "GET") {
         const values = await loadGuildValues(guildId, entry.pluginId);
         sendJson(res, 200, { values });
+        return;
+      }
+
+      if (slashReplyMatch && req.method === "POST" && options.slashReplies) {
+        const chunks: Buffer[] = [];
+        for await (const chunk of req) {
+          chunks.push(chunk as Buffer);
+        }
+        let body: { replyToken?: string; text?: string };
+        try {
+          body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as {
+            replyToken?: string;
+            text?: string;
+          };
+        } catch {
+          sendJson(res, 400, { error: "invalid_json" });
+          return;
+        }
+        if (!body.replyToken || typeof body.text !== "string") {
+          sendJson(res, 400, { error: "invalid_body" });
+          return;
+        }
+        const pending = options.slashReplies.get(body.replyToken);
+        if (
+          !pending ||
+          pending.guildId !== guildId ||
+          pending.pluginId !== entry.pluginId
+        ) {
+          sendJson(res, 404, { error: "no_pending_slash" });
+          return;
+        }
+        await pending.editReply(body.text);
+        pending.replySent = true;
+        sendJson(res, 200, { ok: true });
         return;
       }
 

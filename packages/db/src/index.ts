@@ -6,5 +6,6 @@ export * from "./custom-commands.js";
 export * from "./guilds.js";
 export * from "./plugins.js";
 export * from "./guild-plugins.js";
+export * from "./guild-plugin-slash.js";
 export * from "./plugin-guild-notifications.js";
 export * from "./schema.js";

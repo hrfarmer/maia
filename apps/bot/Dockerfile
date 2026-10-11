@@ -19,7 +19,7 @@ COPY --from=deps /app/packages/plugins/node_modules ./packages/plugins/node_modu
 COPY --from=deps /app/packages/moderation/node_modules ./packages/moderation/node_modules
 COPY --from=deps /app/apps/bot/node_modules ./apps/bot/node_modules
 COPY . .
-RUN pnpm --filter @maia/discord build && pnpm --filter @maia/db build && pnpm --filter @maia/moderation build && pnpm --filter @maia/plugins build && pnpm --filter @maia/bot build
+RUN pnpm --filter @maia/discord build && pnpm --filter @maia/plugins build && pnpm --filter @maia/db build && pnpm --filter @maia/moderation build && pnpm --filter @maia/bot build
 
 FROM base AS runner
 ENV NODE_ENV=production

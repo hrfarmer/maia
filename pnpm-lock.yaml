@@ -127,6 +127,12 @@ importers:
 
   packages/db:
     dependencies:
+      '@maia/discord':
+        specifier: workspace:*
+        version: link:../discord
+      '@maia/plugins':
+        specifier: workspace:*
+        version: link:../plugins
       drizzle-orm:
         specifier: ^0.39.3
         version: 0.39.3(postgres@3.4.9)
@@ -183,6 +189,9 @@ importers:
 
   packages/plugins:
     dependencies:
+      '@maia/discord':
+        specifier: workspace:*
+        version: link:../discord
       cron-parser:
         specifier: ^5.10.2
         version: 5.10.2

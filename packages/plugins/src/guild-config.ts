@@ -77,7 +77,72 @@ export function buildAlwaysOnGuildConfigStdin(
   return `${JSON.stringify(payload)}\n`;
 }
 
-export type PluginRunTrigger = "run_now" | "cron";
+export type PluginRunTrigger = "run_now" | "cron" | "slash";
+
+export interface SlashMemberRef {
+  id: string;
+  username: string | null;
+}
+
+export interface SlashOptionValue {
+  name: string;
+  type: string;
+  value: string | number | boolean | SlashMemberRef | { id: string } | null;
+}
+
+export interface SlashInvocationStdin {
+  guildId: string;
+  trigger: "slash";
+  command: string;
+  options: SlashOptionValue[];
+  member: SlashMemberRef;
+  replyToken: string;
+}
+
+export interface AlwaysOnSlashStdin {
+  guildId: string;
+  trigger: "slash";
+  command: string;
+  options: SlashOptionValue[];
+  member: SlashMemberRef;
+  replyToken: string;
+}
+
+export function buildSlashInvocationStdin(input: {
+  guildId: string;
+  command: string;
+  options: SlashOptionValue[];
+  member: SlashMemberRef;
+  replyToken: string;
+}): string {
+  const payload: SlashInvocationStdin = {
+    guildId: input.guildId,
+    trigger: "slash",
+    command: input.command,
+    options: input.options,
+    member: input.member,
+    replyToken: input.replyToken,
+  };
+  return `${JSON.stringify(payload)}\n`;
+}
+
+export function buildAlwaysOnSlashStdin(input: {
+  guildId: string;
+  command: string;
+  options: SlashOptionValue[];
+  member: SlashMemberRef;
+  replyToken: string;
+}): string {
+  const payload: AlwaysOnSlashStdin = {
+    guildId: input.guildId,
+    trigger: "slash",
+    command: input.command,
+    options: input.options,
+    member: input.member,
+    replyToken: input.replyToken,
+  };
+  return `${JSON.stringify(payload)}\n`;
+}
 
 export interface ManualInvocationStdin {
   guildId: string;

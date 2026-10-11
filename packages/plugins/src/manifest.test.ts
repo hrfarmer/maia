@@ -14,6 +14,7 @@ describe("parsePluginManifest", () => {
       environment: [],
       invocationTimeLimitMs: null,
       maxConcurrentInvocations: null,
+      slashCommands: [],
     });
   });
 

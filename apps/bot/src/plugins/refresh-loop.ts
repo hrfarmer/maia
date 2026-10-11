@@ -4,13 +4,14 @@ import {
   isPluginRefreshPending,
   type Db,
 } from "@maia/db";
+import type { REST } from "discord.js";
 import { runPluginScan } from "./run-scan.js";
 
 const REFRESH_POLL_MS = 2_000;
 
 export function startPluginRefreshLoop(
   db: Db,
-  hooks?: { afterRefreshScan?: () => Promise<void> },
+  hooks?: { afterRefreshScan?: () => Promise<void>; rest?: REST },
 ) {
   const timer = setInterval(() => {
     void (async () => {
@@ -27,6 +28,8 @@ export function startPluginRefreshLoop(
       }
       await runPluginScan(db, "refresh", {
         afterScan: hooks?.afterRefreshScan,
+        rest: hooks?.rest,
+        republishSlashCommands: Boolean(hooks?.rest),
       });
     })().catch((error) => {
       console.error("Plugin refresh scan failed", error);

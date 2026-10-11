@@ -3,10 +3,21 @@ import type { AuditEntryInput } from "@maia/db";
 export function buildPluginRunAuditEntry(input: {
   guildId: string;
   pluginId: string;
-  trigger: "run_now" | "cron";
+  trigger: "run_now" | "cron" | "slash";
+  memberId?: string;
+  commandName?: string;
   success: boolean;
   errorMessage?: string;
 }): AuditEntryInput {
+  const detail: Record<string, unknown> = { trigger: input.trigger };
+  if (input.trigger === "slash") {
+    if (input.memberId) {
+      detail.memberId = input.memberId;
+    }
+    if (input.commandName) {
+      detail.command = input.commandName;
+    }
+  }
   return {
     guildId: input.guildId,
     source: "plugin",
@@ -14,7 +25,7 @@ export function buildPluginRunAuditEntry(input: {
     action: "plugin.run",
     targetType: "plugin",
     targetId: input.pluginId,
-    detail: { trigger: input.trigger },
+    detail,
     success: input.success,
     errorMessage: input.errorMessage,
   };
