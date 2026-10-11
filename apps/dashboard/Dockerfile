@@ -23,7 +23,7 @@ ARG NEXT_PUBLIC_DISCORD_CLIENT_ID
 ARG NEXT_PUBLIC_BASE_URL
 ENV NEXT_PUBLIC_DISCORD_CLIENT_ID=$NEXT_PUBLIC_DISCORD_CLIENT_ID
 ENV NEXT_PUBLIC_BASE_URL=$NEXT_PUBLIC_BASE_URL
-RUN pnpm --filter @maia/discord build && pnpm --filter @maia/moderation build && pnpm --filter @maia/db build && pnpm --filter @maia/plugins build && pnpm --filter @maia/dashboard build
+RUN pnpm --filter @maia/discord build && pnpm --filter @maia/db build && pnpm --filter @maia/moderation build && pnpm --filter @maia/plugins build && pnpm --filter @maia/dashboard build
 
 FROM base AS runner
 ENV NODE_ENV=production
