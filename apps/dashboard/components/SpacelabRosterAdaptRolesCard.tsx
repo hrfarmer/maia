@@ -87,7 +87,10 @@ export function SpacelabRosterAdaptRolesCard({
 
   if (!view) {
     return (
-      <p className="text-sm text-muted-foreground" data-testid="spacelab-adapt-roles">
+      <p
+        className="text-sm text-muted-foreground"
+        data-testid="spacelab-adapt-roles-loading"
+      >
         Loading ADAPT Roles…
       </p>
     );
