@@ -5,6 +5,8 @@ WORKDIR /app
 FROM base AS deps
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY packages/discord/package.json packages/discord/
+COPY packages/crypto/package.json packages/crypto/
+COPY packages/microsoft/package.json packages/microsoft/
 COPY packages/db/package.json packages/db/
 COPY packages/plugins/package.json packages/plugins/
 COPY packages/moderation/package.json packages/moderation/
@@ -14,6 +16,8 @@ RUN pnpm install --frozen-lockfile
 FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/packages/discord/node_modules ./packages/discord/node_modules
+COPY --from=deps /app/packages/crypto/node_modules ./packages/crypto/node_modules
+COPY --from=deps /app/packages/microsoft/node_modules ./packages/microsoft/node_modules
 COPY --from=deps /app/packages/db/node_modules ./packages/db/node_modules
 COPY --from=deps /app/packages/plugins/node_modules ./packages/plugins/node_modules
 COPY --from=deps /app/packages/moderation/node_modules ./packages/moderation/node_modules
@@ -23,7 +27,7 @@ ARG NEXT_PUBLIC_DISCORD_CLIENT_ID
 ARG NEXT_PUBLIC_BASE_URL
 ENV NEXT_PUBLIC_DISCORD_CLIENT_ID=$NEXT_PUBLIC_DISCORD_CLIENT_ID
 ENV NEXT_PUBLIC_BASE_URL=$NEXT_PUBLIC_BASE_URL
-RUN pnpm --filter @maia/discord build && pnpm --filter @maia/plugins build && pnpm --filter @maia/db build && pnpm --filter @maia/moderation build && pnpm --filter @maia/dashboard build
+RUN pnpm --filter @maia/discord build && pnpm --filter @maia/crypto build && pnpm --filter @maia/microsoft build && pnpm --filter @maia/plugins build && pnpm --filter @maia/db build && pnpm --filter @maia/moderation build && pnpm --filter @maia/dashboard build
 
 FROM base AS runner
 ENV NODE_ENV=production

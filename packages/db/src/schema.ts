@@ -149,6 +149,21 @@ export const guildPluginEnvValues = pgTable(
   ],
 );
 
+export const guildPluginOauthTokens = pgTable(
+  "guild_plugin_oauth_tokens",
+  {
+    guildId: varchar("guild_id", { length: 20 })
+      .notNull()
+      .references(() => guilds.id, { onDelete: "cascade" }),
+    pluginId: text("plugin_id").notNull(),
+    encryptedRefreshToken: text("encrypted_refresh_token").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.guildId, table.pluginId] })],
+);
+
 export const pluginRunRequests = pgTable(
   "plugin_run_requests",
   {

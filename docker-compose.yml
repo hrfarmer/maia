@@ -28,6 +28,8 @@ services:
       NEXT_PUBLIC_DISCORD_CLIENT_ID: ${NEXT_PUBLIC_DISCORD_CLIENT_ID}
       NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL:-http://localhost:3000}
       DISCORD_TOKEN: ${DISCORD_TOKEN}
+      MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID:-}
+      MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -42,6 +44,9 @@ services:
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
       DISCORD_DEV_GUILD_ID: ${DISCORD_DEV_GUILD_ID:-}
       MAIA_PLUGINS_DIR: /app/plugins
+      AUTH_SECRET: ${AUTH_SECRET}
+      MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID:-}
+      MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET:-}
     volumes:
       - maia_plugins:/app/plugins
     depends_on:

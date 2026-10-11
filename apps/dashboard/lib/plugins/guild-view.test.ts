@@ -26,6 +26,46 @@ describe("guild plugin view", () => {
     assert.equal(fields[1]?.hasSecretValue, true);
   });
 
+  it("shows Outlook mailbox controls only on spacelab-roster", () => {
+    const spaceLab = mergeGuildPluginRow({
+      plugin: {
+        id: "sl",
+        directoryName: "spacelab-plugins",
+        status: "ok",
+        pluginId: "spacelab-roster",
+        displayName: "Space Lab roster",
+        lifetime: "always-on",
+        subscribedEvents: [],
+        errorMessage: null,
+        environment: [{ key: "ROSTER_COLUMN", required: true, secret: false }],
+      },
+      enabled: false,
+      storedValues: new Map(),
+      outlookMailboxConnected: true,
+    });
+    assert.equal(spaceLab.showOutlookMailboxControl, true);
+    assert.equal(spaceLab.outlookMailboxConnected, true);
+
+    const other = mergeGuildPluginRow({
+      plugin: {
+        id: "1",
+        directoryName: "role-sync",
+        status: "ok",
+        pluginId: "role-sync",
+        displayName: "Role sync",
+        lifetime: "invocation",
+        subscribedEvents: [],
+        errorMessage: null,
+        environment: [],
+      },
+      enabled: false,
+      storedValues: new Map(),
+      outlookMailboxConnected: true,
+    });
+    assert.equal(other.showOutlookMailboxControl, false);
+    assert.equal(other.outlookMailboxConnected, false);
+  });
+
   it("shows cron control only for invocation plugins", () => {
     const invocation = mergeGuildPluginRow({
       plugin: {

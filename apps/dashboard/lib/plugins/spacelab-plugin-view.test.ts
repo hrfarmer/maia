@@ -31,6 +31,28 @@ describe("Space Lab roster plugins tab row", () => {
     assert.equal(row.environment[0]?.required, true);
     assert.equal(row.environment[0]?.secret, false);
     assert.equal(row.showCronControl, false);
+    assert.equal(row.showOutlookMailboxControl, true);
+    assert.equal(row.outlookMailboxConnected, false);
+  });
+
+  it("shows Connect when disconnected and Disconnect when connected", () => {
+    const disconnected = mergeGuildPluginRow({
+      plugin: scanPlugin,
+      enabled: false,
+      storedValues: new Map(),
+      outlookMailboxConnected: false,
+    });
+    assert.equal(disconnected.showOutlookMailboxControl, true);
+    assert.equal(disconnected.outlookMailboxConnected, false);
+
+    const connected = mergeGuildPluginRow({
+      plugin: scanPlugin,
+      enabled: true,
+      storedValues: new Map([["ROSTER_COLUMN", "LabRole"]]),
+      outlookMailboxConnected: true,
+    });
+    assert.equal(connected.showOutlookMailboxControl, true);
+    assert.equal(connected.outlookMailboxConnected, true);
   });
 
   it("shows saved non-secret ROSTER_COLUMN values to guild managers", () => {
