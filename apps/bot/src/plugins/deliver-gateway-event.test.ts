@@ -65,7 +65,7 @@ describe("deliverMemberRoleGatewayEvent", () => {
       getPlugins: async () =>
         new Map([["inv", invocationPlugin()]]),
       listSettings: async () => [
-        { guildId: "111", pluginId: "inv", enabled: true, cronExpression: null },
+        { guildId: "111", pluginId: "inv", enabled: true, cronExpression: null, slashCommandsEnabled: false, slashPublishError: null, slashCollisionNotes: null },
       ],
       runInvocationEvent: async (input) => {
         runs.push({ event: input.event, guildId: input.guildId });
@@ -105,7 +105,7 @@ describe("deliverMemberRoleGatewayEvent", () => {
       log: () => {},
       getPlugins: async () => new Map([["ao", alwaysOnPlugin()]]),
       listSettings: async () => [
-        { guildId: "111", pluginId: "ao", enabled: true, cronExpression: null },
+        { guildId: "111", pluginId: "ao", enabled: true, cronExpression: null, slashCommandsEnabled: false, slashPublishError: null, slashCollisionNotes: null },
       ],
       runInvocationEvent: async () => {
         invocationRuns += 1;
@@ -146,7 +146,7 @@ describe("deliverMemberRoleGatewayEvent", () => {
           ["inv", invocationPlugin({ subscribedEvents: ["member.leave"] })],
         ]),
       listSettings: async () => [
-        { guildId: "111", pluginId: "inv", enabled: false, cronExpression: null },
+        { guildId: "111", pluginId: "inv", enabled: false, cronExpression: null, slashCommandsEnabled: false, slashPublishError: null, slashCollisionNotes: null },
       ],
       runInvocationEvent: async () => {
         runs += 1;
@@ -193,7 +193,7 @@ describe("deliverMemberRoleGatewayEvent", () => {
       getPlugins: async () =>
         new Map([["inv", invocationPlugin({ maxConcurrentInvocations: 1 })]]),
       listSettings: async () => [
-        { guildId: "111", pluginId: "inv", enabled: true, cronExpression: null },
+        { guildId: "111", pluginId: "inv", enabled: true, cronExpression: null, slashCommandsEnabled: false, slashPublishError: null, slashCollisionNotes: null },
       ],
       runInvocationEvent: (input) =>
         executePluginEventRun({
