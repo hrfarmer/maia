@@ -17,6 +17,9 @@ importers:
       '@maia/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@maia/moderation':
+        specifier: workspace:*
+        version: link:../../packages/moderation
       '@maia/plugins':
         specifier: workspace:*
         version: link:../../packages/plugins
@@ -45,6 +48,9 @@ importers:
       '@maia/discord':
         specifier: workspace:*
         version: link:../../packages/discord
+      '@maia/moderation':
+        specifier: workspace:*
+        version: link:../../packages/moderation
       '@maia/plugins':
         specifier: workspace:*
         version: link:../../packages/plugins
@@ -149,6 +155,25 @@ importers:
       discord.js:
         specifier: ^14.18.0
         version: 14.27.0
+      tsx:
+        specifier: ^4.19.3
+        version: 4.23.15
+      typescript:
+        specifier: ^5.8.2
+        version: 5.9.3
+
+  packages/moderation:
+    dependencies:
+      '@maia/db':
+        specifier: workspace:*
+        version: link:../db
+      '@maia/discord':
+        specifier: workspace:*
+        version: link:../discord
+    devDependencies:
+      '@types/node':
+        specifier: ^22.13.10
+        version: 22.20.5
       tsx:
         specifier: ^4.19.3
         version: 4.23.15

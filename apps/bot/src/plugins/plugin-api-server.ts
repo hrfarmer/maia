@@ -4,6 +4,15 @@ import {
   loadGuildPluginValuesForApi,
   resolvePluginTokenForGuild,
 } from "./plugin-api-access.js";
+import {
+  pluginAuditActor,
+  readBearerToken,
+} from "./plugin-api-auth.js";
+import {
+  defaultPluginModerationHandlers,
+  tryHandlePluginModerationRequest,
+  type PluginModerationHandlers,
+} from "./plugin-api-moderation.js";
 import type { PluginTokenRegistry } from "./token-registry.js";
 
 export interface PluginApiServerOptions {
@@ -19,14 +28,7 @@ export interface PluginApiServerOptions {
     guildId: string,
     pluginId: string,
   ) => Promise<Record<string, string>>;
-}
-
-function readBearerToken(header: string | undefined): string | null {
-  if (!header?.startsWith("Bearer ")) {
-    return null;
-  }
-  const token = header.slice("Bearer ".length).trim();
-  return token.length > 0 ? token : null;
+  moderationHandlers?: PluginModerationHandlers;
 }
 
 function sendJson(
@@ -37,6 +39,11 @@ function sendJson(
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.end(JSON.stringify(body));
+}
+
+function extractGuildId(pathname: string): string | null {
+  const match = pathname.match(/^\/v1\/guilds\/([^/]+)(?:\/|$)/);
+  return match?.[1] ?? null;
 }
 
 export function createPluginApiServer(options: PluginApiServerOptions) {
@@ -59,30 +66,61 @@ export function createPluginApiServer(options: PluginApiServerOptions) {
     ((guildId, pluginId) =>
       loadGuildPluginValuesForApi(options.db, guildId, pluginId));
 
+  const moderationHandlers =
+    options.moderationHandlers ?? defaultPluginModerationHandlers();
+
   const server = http.createServer((req, res) => {
     void (async () => {
       const url = new URL(req.url ?? "/", `http://${host}`);
-      const pingMatch = url.pathname.match(/^\/v1\/guilds\/([^/]+)\/ping$/);
-      const valuesMatch = url.pathname.match(/^\/v1\/guilds\/([^/]+)\/values$/);
+      const guildId = extractGuildId(url.pathname);
+      if (!guildId) {
+        sendJson(res, 404, { error: "not_found" });
+        return;
+      }
 
-      if (req.method === "GET" && (pingMatch || valuesMatch)) {
-        const guildId = (pingMatch ?? valuesMatch)![1];
-        const token = readBearerToken(req.headers.authorization);
-        if (!token) {
-          sendJson(res, 401, { error: "missing_token" });
-          return;
-        }
-        const entry = await assertGuildApiAccess(token, guildId);
-        if (!entry) {
-          sendJson(res, 403, { error: "forbidden" });
-          return;
-        }
-        if (pingMatch) {
-          sendJson(res, 200, { ok: true, pluginId: entry.pluginId });
-          return;
-        }
+      const pingMatch = url.pathname === `/v1/guilds/${guildId}/ping`;
+      const valuesMatch = url.pathname === `/v1/guilds/${guildId}/values`;
+      const needsAuth =
+        pingMatch ||
+        valuesMatch ||
+        url.pathname.startsWith(`/v1/guilds/${guildId}/`);
+
+      if (!needsAuth) {
+        sendJson(res, 404, { error: "not_found" });
+        return;
+      }
+
+      const token = readBearerToken(req.headers.authorization);
+      if (!token) {
+        sendJson(res, 401, { error: "missing_token" });
+        return;
+      }
+      const entry = await assertGuildApiAccess(token, guildId);
+      if (!entry) {
+        sendJson(res, 403, { error: "forbidden" });
+        return;
+      }
+
+      if (pingMatch && req.method === "GET") {
+        sendJson(res, 200, { ok: true, pluginId: entry.pluginId });
+        return;
+      }
+      if (valuesMatch && req.method === "GET") {
         const values = await loadGuildValues(guildId, entry.pluginId);
         sendJson(res, 200, { values });
+        return;
+      }
+
+      const actor = pluginAuditActor(entry.pluginId);
+      const handled = await tryHandlePluginModerationRequest(
+        req,
+        res,
+        url,
+        guildId,
+        actor,
+        moderationHandlers,
+      );
+      if (handled) {
         return;
       }
 
