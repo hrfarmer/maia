@@ -7,9 +7,17 @@ export function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
-import { apiKeyMatchesGuild, parseBearerAuth } from "./auth-utils";
+import {
+  apiKeyAuditActor,
+  apiKeyMatchesGuild,
+  parseBearerAuth,
+} from "./auth-utils";
 
-export { apiKeyMatchesGuild, parseBearerAuth } from "./auth-utils";
+export {
+  apiKeyAuditActor,
+  apiKeyMatchesGuild,
+  parseBearerAuth,
+} from "./auth-utils";
 
 export async function authenticateApiKey(
   request: Request,
@@ -42,13 +50,7 @@ export async function authenticateApiKey(
     return { error: jsonError("API key is not valid for this guild", 403) };
   }
 
-  return {
-    actor: {
-      source: "api" as const,
-      id: key.id,
-      label: key.name,
-    },
-  };
+  return { actor: apiKeyAuditActor(key) };
 }
 
 export function handleModerationError(error: unknown) {

@@ -5,7 +5,7 @@ import {
   computeGuildPermissions,
   parseRoleCreateInput,
   sanitizeRolePermissions,
-} from "./role-create";
+} from "./role-create.js";
 
 describe("parseRoleCreateInput", () => {
   it("accepts minimal valid input", () => {
