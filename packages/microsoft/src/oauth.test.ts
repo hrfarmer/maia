@@ -6,6 +6,7 @@ import {
   createMicrosoftOAuthState,
   exchangeMicrosoftAuthorizationCode,
   parseMicrosoftOAuthState,
+  refreshMicrosoftAccessToken,
 } from "./oauth.js";
 
 describe("Microsoft OAuth helpers", () => {
@@ -65,5 +66,34 @@ describe("Microsoft OAuth helpers", () => {
       fetchImpl as typeof fetch,
     );
     assert.equal(tokens.refresh_token, "refresh-abc");
+  });
+
+  it("refreshes access token via fake Microsoft token endpoint", async () => {
+    process.env.MICROSOFT_CLIENT_ID = "client-id";
+    process.env.MICROSOFT_CLIENT_SECRET = "client-secret";
+    process.env.MICROSOFT_TOKEN_URL = "https://fake.microsoft/token";
+    const config = resolveMicrosoftOAuthConfig("http://localhost:3000");
+    const fetchImpl = async (input: RequestInfo | URL, init?: RequestInit) => {
+      assert.equal(String(input), "https://fake.microsoft/token");
+      const body = String(init?.body ?? "");
+      assert.match(body, /grant_type=refresh_token/);
+      assert.match(body, /refresh_token=stored-refresh/);
+      return new Response(
+        JSON.stringify({
+          access_token: "fresh-access",
+          refresh_token: "rotated-refresh",
+          expires_in: 1800,
+          token_type: "Bearer",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    };
+    const tokens = await refreshMicrosoftAccessToken(
+      config,
+      "stored-refresh",
+      fetchImpl as typeof fetch,
+    );
+    assert.equal(tokens.access_token, "fresh-access");
+    assert.equal(tokens.refresh_token, "rotated-refresh");
   });
 });

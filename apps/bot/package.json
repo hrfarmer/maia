@@ -9,11 +9,12 @@
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
     "deploy-commands": "tsx src/deploy-commands.ts",
-    "test": "node --import tsx --test src/client-intents.test.ts src/plugins/plugin-api-server.test.ts src/plugins/plugin-api-access.test.ts src/plugins/plugin-api-moderation.test.ts src/plugins/plugin-api-messages.test.ts src/plugins/plugin-api-auth.test.ts src/plugins/token-registry.test.ts src/plugins/plugin-run-audit.test.ts src/plugins/run-scan.test.ts src/plugins/cron-loop.test.ts src/plugins/plugin-supervisor.test.ts src/plugins/spacelab-roster-process.test.ts src/plugins/issue18-criteria.test.ts src/plugins/issue19-criteria.test.ts src/plugins/issue21-criteria.test.ts src/plugins/issue22-criteria.test.ts src/plugins/event-invocation-concurrency.test.ts src/plugins/deliver-gateway-event.test.ts src/plugins/execute-event-run.test.ts src/plugins/execute-slash-run.test.ts src/plugins/slash-reply-registry.test.ts"
+    "test": "node --import tsx --test src/client-intents.test.ts src/plugins/plugin-api-server.test.ts src/plugins/plugin-api-access.test.ts src/plugins/plugin-api-moderation.test.ts src/plugins/plugin-api-messages.test.ts src/plugins/plugin-api-mailbox.test.ts src/plugins/guild-mailbox-access-token.test.ts src/plugins/plugin-api-auth.test.ts src/plugins/token-registry.test.ts src/plugins/plugin-run-audit.test.ts src/plugins/run-scan.test.ts src/plugins/cron-loop.test.ts src/plugins/plugin-supervisor.test.ts src/plugins/spacelab-roster-process.test.ts src/plugins/issue18-criteria.test.ts src/plugins/issue19-criteria.test.ts src/plugins/issue21-criteria.test.ts src/plugins/issue22-criteria.test.ts src/plugins/issue39-criteria.test.ts src/plugins/event-invocation-concurrency.test.ts src/plugins/deliver-gateway-event.test.ts src/plugins/execute-event-run.test.ts src/plugins/execute-slash-run.test.ts src/plugins/slash-reply-registry.test.ts"
   },
   "dependencies": {
     "@maia/crypto": "workspace:*",
     "@maia/db": "workspace:*",
+    "@maia/microsoft": "workspace:*",
     "@maia/moderation": "workspace:*",
     "@maia/plugins": "workspace:*",
     "discord.js": "^14.18.0",
