@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { describe, it } from "node:test";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { buildPluginRunAuditEntry } from "./plugin-run-audit.js";
+
+const botPluginsDir = path.dirname(fileURLToPath(import.meta.url));
 
 describe("plugin slash runs", () => {
   it("records slash trigger audit with member and command", () => {
@@ -17,17 +22,13 @@ describe("plugin slash runs", () => {
     assert.equal(entry.detail?.command, "ping");
   });
 
-  it("does not use member or role event delivery (separate slash path)", () => {
-    assert.notEqual(
-      buildPluginRunAuditEntry({
-        guildId: "g1",
-        pluginId: "demo",
-        trigger: "slash",
-        memberId: "u1",
-        commandName: "ping",
-        success: true,
-      }).detail?.trigger,
-      "member.join",
+  it("bypasses member/role event invocation cap (#19)", async () => {
+    const slashRun = await readFile(
+      path.join(botPluginsDir, "execute-slash-run.ts"),
+      "utf8",
     );
+    assert.doesNotMatch(slashRun, /PluginEventInvocationConcurrency/);
+    assert.doesNotMatch(slashRun, /executePluginEventRun/);
+    assert.doesNotMatch(slashRun, /deliverMemberRoleGatewayEvent/);
   });
 });
