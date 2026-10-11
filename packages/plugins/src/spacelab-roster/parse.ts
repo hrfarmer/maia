@@ -4,20 +4,98 @@ class RosterParseError extends Error {
   readonly tag = "RosterParseError";
 }
 
+function stripUtf8Bom(message: string): string {
+  return message.charCodeAt(0) === 0xfeff ? message.slice(1) : message;
+}
+
+function htmlToPlainText(html: string): string {
+  let text = html;
+  text = text.replace(/<br\s*\/?>/gi, "\n");
+  text = text.replace(/<\/tr>/gi, "\n");
+  text = text.replace(/<\/p>/gi, "\n");
+  text = text.replace(/<[^>]+>/g, "");
+  text = text
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/g, "'");
+  return text;
+}
+
+export function normalizeLabRosterMessageBody(message: string): string {
+  let normalized = stripUtf8Bom(message);
+  const trimmedStart = normalized.trimStart();
+  if (/^</.test(trimmedStart)) {
+    normalized = htmlToPlainText(normalized);
+  }
+  return normalized.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+}
+
 function splitMessageLines(message: string): string[] {
-  const normalized = message.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+  const normalized = normalizeLabRosterMessageBody(message);
   if (normalized === "") {
     return [];
   }
   return normalized.split("\n");
 }
 
-function splitRow(line: string): string[] {
-  return line.split("\t");
+function detectDelimiter(headerLine: string): "\t" | "," {
+  if (headerLine.includes("\t")) {
+    return "\t";
+  }
+  return ",";
+}
+
+function splitCsvRow(line: string): string[] {
+  const cells: string[] = [];
+  let current = "";
+  let inQuotes = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index]!;
+    if (inQuotes) {
+      if (char === '"') {
+        if (line[index + 1] === '"') {
+          current += '"';
+          index += 1;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        current += char;
+      }
+      continue;
+    }
+    if (char === '"') {
+      inQuotes = true;
+      continue;
+    }
+    if (char === ",") {
+      cells.push(current);
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+  cells.push(current);
+  return cells;
+}
+
+function splitRow(line: string, delimiter: "\t" | ","): string[] {
+  if (delimiter === "\t") {
+    return line.split("\t");
+  }
+  return splitCsvRow(line);
 }
 
 function parseHeaderColumns(headerLine: string): string[] {
-  return splitRow(headerLine).map((cell) => cell.trim());
+  const delimiter = detectDelimiter(headerLine);
+  return splitRow(headerLine, delimiter).map((cell) => cell.trim());
+}
+
+function rowCells(line: string, delimiter: "\t" | ","): string[] {
+  return splitRow(line, delimiter).map((cell) => cell.trim());
 }
 
 export function labRosterExportHeaders(message: string): string[] | null {
@@ -28,20 +106,45 @@ export function labRosterExportHeaders(message: string): string[] | null {
   return parseHeaderColumns(lines[0]!);
 }
 
+export function labRosterNotRecognizedReason(
+  message: string,
+  rosterColumn: string,
+): string | null {
+  const raw = stripUtf8Bom(message);
+  const trimmedStart = raw.trimStart();
+  if (trimmedStart === "") {
+    return "empty_body";
+  }
+  const looksHtml = /^</.test(trimmedStart);
+  const normalizedMessage = normalizeLabRosterMessageBody(raw);
+  if (normalizedMessage === "") {
+    return looksHtml ? "html_body" : "empty_body";
+  }
+  const headers = labRosterExportHeaders(normalizedMessage);
+  if (!headers) {
+    return looksHtml ? "html_body" : "empty_body";
+  }
+  const headerSet = new Set(headers);
+  if (!headerSet.has("DiscordHandle")) {
+    if (looksHtml && !normalizedMessage.includes("DiscordHandle")) {
+      return "html_body";
+    }
+    return "missing_header DiscordHandle";
+  }
+  if (!headerSet.has("Status")) {
+    return "missing_header Status";
+  }
+  if (!headerSet.has(rosterColumn)) {
+    return `column_missing ${rosterColumn}`;
+  }
+  return null;
+}
+
 export function isLabRosterExportMessage(
   message: string,
   rosterColumn: string,
 ): boolean {
-  const headers = labRosterExportHeaders(message);
-  if (!headers) {
-    return false;
-  }
-  const headerSet = new Set(headers);
-  return (
-    headerSet.has("DiscordHandle") &&
-    headerSet.has("Status") &&
-    headerSet.has(rosterColumn)
-  );
+  return labRosterNotRecognizedReason(message, rosterColumn) === null;
 }
 
 function parseLookupCellValues(cell: string): string[] {
@@ -124,7 +227,9 @@ export function parseLabRosterMessage(
   }
 
   const lines = splitMessageLines(message);
-  const headers = parseHeaderColumns(lines[0]!);
+  const headerLine = lines[0]!;
+  const delimiter = detectDelimiter(headerLine);
+  const headers = parseHeaderColumns(headerLine);
   const handleIndex = headers.indexOf("DiscordHandle");
   const statusIndex = headers.indexOf("Status");
   const rosterIndex = headers.indexOf(rosterColumn);
@@ -139,7 +244,7 @@ export function parseLabRosterMessage(
       if (line.trim() === "") {
         continue;
       }
-      const cells = splitRow(line);
+      const cells = rowCells(line, delimiter);
       const discordHandle = (cells[handleIndex] ?? "").trim();
       const status = (cells[statusIndex] ?? "").trim();
       if (discordHandle === "" || status === "") {

@@ -2,10 +2,14 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   SYNTHETIC_LAB_ROSTER_EXPORT,
+  SYNTHETIC_LAB_ROSTER_EXPORT_CSV,
+  SYNTHETIC_LAB_ROSTER_EXPORT_CSV_INVALID_ROW,
   SYNTHETIC_LAB_ROSTER_EXPORT_INVALID_ROW,
 } from "./fixture.js";
 import {
   isLabRosterExportMessage,
+  labRosterNotRecognizedReason,
+  normalizeLabRosterMessageBody,
   parseLabRosterMessage,
   rosterStatusIsActive,
 } from "./parse.js";
@@ -82,5 +86,58 @@ describe("parseLabRosterMessage", () => {
       "Subteam",
     );
     assert.equal(parsed.ok, false);
+  });
+
+  it("parses Power Automate CSV exports with extra columns and quoted lookup JSON", () => {
+    assert.equal(
+      isLabRosterExportMessage(SYNTHETIC_LAB_ROSTER_EXPORT_CSV, "Subteam"),
+      true,
+    );
+    const parsed = parseLabRosterMessage(
+      SYNTHETIC_LAB_ROSTER_EXPORT_CSV,
+      "Subteam",
+    );
+    assert.equal(parsed.ok, true);
+    if (!parsed.ok) {
+      return;
+    }
+    assert.deepEqual(parsed.adaptRoleValues, ["Alpha", "Beta", "Delta", "Gamma"]);
+  });
+
+  it("rejects invalid CSV roster rows without accepting partial data", () => {
+    const parsed = parseLabRosterMessage(
+      SYNTHETIC_LAB_ROSTER_EXPORT_CSV_INVALID_ROW,
+      "Subteam",
+    );
+    assert.equal(parsed.ok, false);
+  });
+
+  it("strips a UTF-8 BOM and CRLF line endings before parsing", () => {
+    const withBom = `\ufeff${SYNTHETIC_LAB_ROSTER_EXPORT_CSV.replace(/\n/g, "\r\n")}`;
+    assert.equal(isLabRosterExportMessage(withBom, "Subteam"), true);
+  });
+
+  it("extracts CSV from HTML bodies when Graph returns HTML", () => {
+    const html = `<html><body><pre>${SYNTHETIC_LAB_ROSTER_EXPORT_CSV.replace(/&/g, "&amp;")}</pre></body></html>`;
+    const plain = normalizeLabRosterMessageBody(html);
+    assert.equal(isLabRosterExportMessage(plain, "Subteam"), true);
+  });
+
+  it("reports non-PII reasons when a message is not a roster export", () => {
+    assert.equal(
+      labRosterNotRecognizedReason("Hello team", "Subteam"),
+      "missing_header DiscordHandle",
+    );
+    assert.equal(
+      labRosterNotRecognizedReason(
+        "DiscordHandle,Status,Other\nx,y,z",
+        "Subteam",
+      ),
+      "column_missing Subteam",
+    );
+    assert.equal(
+      labRosterNotRecognizedReason("<html><body>newsletter</body></html>", "Subteam"),
+      "html_body",
+    );
   });
 });

@@ -25,16 +25,25 @@ function mockHandle(input: {
   waitForExit?: () => Promise<{ exitCode: number | null; signal: NodeJS.Signals | null }>;
 }): SupervisedPluginProcessHandle {
   const stdinLines = input.stdinLines ?? [];
+  let resolveExit:
+    | ((value: { exitCode: number | null; signal: NodeJS.Signals | null }) => void)
+    | undefined;
+  const exitPromise =
+    input.waitForExit?.() ??
+    new Promise<{ exitCode: number | null; signal: NodeJS.Signals | null }>(
+      (resolve) => {
+        resolveExit = resolve;
+      },
+    );
   return {
     writeStdin(line: string) {
       stdinLines.push(line);
     },
     kill() {
       input.onKill?.();
+      resolveExit?.({ exitCode: 0, signal: "SIGTERM" });
     },
-    waitForExit:
-      input.waitForExit ??
-      (() => new Promise(() => {})),
+    waitForExit: () => exitPromise,
   };
 }
 
@@ -143,6 +152,48 @@ describe("AlwaysOnSupervisor", () => {
     assert.equal(killed, true);
   });
 
+  it("keeps the previous always-on token valid until the old process exits on restart", async () => {
+    const registry = new PluginTokenRegistry();
+    const tokens: string[] = [];
+    let releaseFirstExit: (() => void) | undefined;
+    const supervisor = new AlwaysOnSupervisor({
+      db: {} as Db,
+      tokenRegistry: registry,
+      pluginApiUrl: "http://127.0.0.1:3847",
+      listAlwaysOnPlugins: async () => [demoPlugin()],
+      spawnSupervised: (input) => {
+        tokens.push(input.env.MAIA_PLUGIN_TOKEN);
+        if (tokens.length === 1) {
+          return mockHandle({
+            waitForExit: () =>
+              new Promise((resolve) => {
+                releaseFirstExit = () =>
+                  resolve({ exitCode: 0, signal: "SIGTERM" });
+              }),
+          });
+        }
+        return mockHandle({});
+      },
+    });
+
+    await supervisor.syncFromLatestScan({ restartExisting: false });
+    const firstToken = tokens[0];
+    assert.ok(firstToken);
+    assert.ok(registry.lookup(firstToken));
+
+    const restartPromise = supervisor.syncFromLatestScan({ restartExisting: true });
+    assert.ok(
+      registry.lookup(firstToken),
+      "old token must work while process shuts down",
+    );
+    releaseFirstExit?.();
+    await restartPromise;
+    assert.equal(registry.lookup(firstToken), null);
+    assert.ok(registry.lookup(tokens[1]!));
+
+    await supervisor.shutdown();
+  });
+
   it("starts the process again after an unexpected exit", async () => {
     let spawnCount = 0;
     const exitResolvers: Array<() => void> = [];
@@ -153,12 +204,15 @@ describe("AlwaysOnSupervisor", () => {
       listAlwaysOnPlugins: async () => [demoPlugin()],
       spawnSupervised: () => {
         spawnCount += 1;
-        return mockHandle({
-          waitForExit: () =>
-            new Promise((resolve) => {
-              exitResolvers.push(() => resolve({ exitCode: 0, signal: null }));
-            }),
-        });
+        if (spawnCount === 1) {
+          return mockHandle({
+            waitForExit: () =>
+              new Promise((resolve) => {
+                exitResolvers.push(() => resolve({ exitCode: 0, signal: null }));
+              }),
+          });
+        }
+        return mockHandle({});
       },
     });
 

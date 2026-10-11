@@ -15,6 +15,8 @@ export interface SpacelabMinutePollDeps {
   now?: () => number;
   setIntervalImpl?: typeof setInterval;
   runCycle?: typeof runSpacelabGuildCycle;
+  /** When false, only the interval schedules ticks (for tests). Default true. */
+  scheduleInitialTick?: boolean;
 }
 
 export function startSpacelabMinutePoll(deps: SpacelabMinutePollDeps) {
@@ -35,20 +37,44 @@ export function startSpacelabMinutePoll(deps: SpacelabMinutePollDeps) {
         fetchImpl,
       });
       for (const guildId of guildIds) {
-        const config: MaiaSpacelabPluginApiConfig = {
-          pluginUrl: deps.pluginUrl,
-          pluginToken: deps.pluginToken,
-          guildId,
-          fetchImpl,
-        };
-        await runCycle({ config, graph: deps.graph });
+        try {
+          const config: MaiaSpacelabPluginApiConfig = {
+            pluginUrl: deps.pluginUrl,
+            pluginToken: deps.pluginToken,
+            guildId,
+            fetchImpl,
+          };
+          await runCycle({ config, graph: deps.graph });
+        } catch (error) {
+          console.error(
+            JSON.stringify({
+              guildId,
+              cycle: {
+                ok: false,
+                error:
+                  error instanceof Error ? error.message : "cycle_tick_failed",
+              },
+            }),
+          );
+        }
       }
+    } catch (error) {
+      console.error(
+        JSON.stringify({
+          cycle: {
+            ok: false,
+            error: error instanceof Error ? error.message : "minute_poll_failed",
+          },
+        }),
+      );
     } finally {
       running = false;
     }
   }
 
-  void tick();
+  if (deps.scheduleInitialTick !== false) {
+    void tick();
+  }
   const timer = setIntervalImpl(() => {
     void tick();
   }, SPACELAB_POLL_INTERVAL_MS);

@@ -286,7 +286,7 @@ describe("runSpacelabGuildCycle", () => {
       adaptLinksRevision: 0,
       lastProcessedAdaptLinksRevision: 0,
     };
-    await runSpacelabGuildCycle({
+    const result = await runSpacelabGuildCycle({
       config: {
         pluginUrl: "http://127.0.0.1:9",
         pluginToken: "token",
@@ -299,6 +299,8 @@ describe("runSpacelabGuildCycle", () => {
       graph.inbox.map((message) => message.id),
       ["plain"],
     );
+    assert.equal(result.skippedReason, "no_new_roster");
+    assert.equal(result.notRosterReason, "missing_header DiscordHandle");
   });
 
   it("parses only the newest roster message in the inbox", async () => {

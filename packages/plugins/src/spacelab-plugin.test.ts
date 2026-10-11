@@ -20,6 +20,13 @@ const repoRoot = path.resolve(
 const spacelabDir = path.join(repoRoot, "plugins", SPACELAB_PLUGINS_DIRECTORY_NAME);
 
 describe("Space Lab roster shipped plugin", () => {
+  it("ships package.json so Node treats the plugin as ESM", async () => {
+    const raw = JSON.parse(
+      await fs.readFile(path.join(spacelabDir, "package.json"), "utf8"),
+    );
+    assert.equal(raw.type, "module");
+  });
+
   it("ships a valid always-on manifest with required non-secret ROSTER_COLUMN", async () => {
     const raw = JSON.parse(
       await fs.readFile(

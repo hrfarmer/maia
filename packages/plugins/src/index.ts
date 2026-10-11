@@ -62,6 +62,8 @@ export {
 export {
   isLabRosterExportMessage,
   labRosterExportHeaders,
+  labRosterNotRecognizedReason,
+  normalizeLabRosterMessageBody,
   parseLabRosterMessage,
   rosterStatusIsActive,
 } from "./spacelab-roster/parse.js";
@@ -104,6 +106,7 @@ export {
 } from "./spacelab-roster/graph-mailbox.js";
 export {
   SYNTHETIC_LAB_ROSTER_EXPORT,
+  SYNTHETIC_LAB_ROSTER_EXPORT_CSV,
   SYNTHETIC_LAB_ROSTER_EXPORT_INVALID_ROW,
 } from "./spacelab-roster/fixture.js";
 export {
