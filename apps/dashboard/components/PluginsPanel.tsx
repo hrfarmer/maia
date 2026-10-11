@@ -396,42 +396,34 @@ export function PluginsPanel({ guildId }: PluginsPanelProps) {
 
             {selectedPlugin.showOutlookMailboxControl ? (
               <div
-                className="flex flex-col gap-2 sm:flex-row sm:items-center"
+                className="flex flex-wrap gap-2"
                 data-testid="plugin-outlook-mailbox-control"
               >
-                <p className="text-sm text-muted-foreground">
-                  Outlook mailbox:{" "}
-                  {selectedPlugin.outlookMailboxConnected
-                    ? "Connected"
-                    : "Not connected"}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {!selectedPlugin.outlookMailboxConnected ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="rounded-sm"
-                      disabled={busy}
-                      data-testid="outlook-connect"
-                      onClick={() => connectOutlookMailbox()}
-                    >
-                      Connect
-                    </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="rounded-sm"
-                      disabled={busy}
-                      data-testid="outlook-disconnect"
-                      onClick={() => void disconnectOutlookMailbox()}
-                    >
-                      Disconnect
-                    </Button>
-                  )}
-                </div>
+                {!selectedPlugin.outlookMailboxConnected ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="rounded-sm"
+                    disabled={busy}
+                    data-testid="outlook-connect"
+                    onClick={() => connectOutlookMailbox()}
+                  >
+                    Connect
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="rounded-sm"
+                    disabled={busy}
+                    data-testid="outlook-disconnect"
+                    onClick={() => void disconnectOutlookMailbox()}
+                  >
+                    Disconnect
+                  </Button>
+                )}
               </div>
             ) : null}
 
