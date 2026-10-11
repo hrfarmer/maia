@@ -44,6 +44,8 @@ interface PluginRow {
   showSlashControl: boolean;
   slashPublishError: string | null;
   slashCollisionNotes: Array<{ name: string; reason: string }>;
+  showOutlookMailboxControl: boolean;
+  outlookMailboxConnected: boolean;
 }
 
 interface ScanState {
@@ -193,6 +195,30 @@ export function PluginsPanel({ guildId }: PluginsPanelProps) {
         return;
       }
       setStatus("Saved");
+      await loadPlugins();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function connectOutlookMailbox() {
+    window.location.href = `/api/servers/${guildId}/plugins/spacelab-roster/microsoft/connect`;
+  }
+
+  async function disconnectOutlookMailbox() {
+    setBusy(true);
+    setStatus(null);
+    try {
+      const res = await fetch(
+        `/api/servers/${guildId}/plugins/spacelab-roster/microsoft`,
+        { method: "DELETE" },
+      );
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setStatus(data.error ?? "Disconnect failed");
+        return;
+      }
+      setStatus("Disconnected");
       await loadPlugins();
     } finally {
       setBusy(false);
@@ -367,6 +393,47 @@ export function PluginsPanel({ guildId }: PluginsPanelProps) {
                 No environment keys declared.
               </p>
             )}
+
+            {selectedPlugin.showOutlookMailboxControl ? (
+              <div
+                className="flex flex-col gap-2 sm:flex-row sm:items-center"
+                data-testid="plugin-outlook-mailbox-control"
+              >
+                <p className="text-sm text-muted-foreground">
+                  Outlook mailbox:{" "}
+                  {selectedPlugin.outlookMailboxConnected
+                    ? "Connected"
+                    : "Not connected"}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {!selectedPlugin.outlookMailboxConnected ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="rounded-sm"
+                      disabled={busy}
+                      data-testid="outlook-connect"
+                      onClick={() => connectOutlookMailbox()}
+                    >
+                      Connect
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="rounded-sm"
+                      disabled={busy}
+                      data-testid="outlook-disconnect"
+                      onClick={() => void disconnectOutlookMailbox()}
+                    >
+                      Disconnect
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ) : null}
 
             {selectedPlugin.showSlashControl ? (
               <div

@@ -5,6 +5,7 @@ import {
   type PluginSlashCommand,
   type PluginSlashCollision,
 } from "@maia/plugins";
+import { SPACELAB_ROSTER_PLUGIN_ID } from "@maia/microsoft";
 
 export interface GuildPluginEnvironmentField {
   key: string;
@@ -34,6 +35,8 @@ export interface GuildPluginViewRow {
   showSlashControl: boolean;
   slashPublishError: string | null;
   slashCollisionNotes: PluginSlashCollision[];
+  showOutlookMailboxControl: boolean;
+  outlookMailboxConnected: boolean;
 }
 
 export function buildGuildPluginEnvironmentFields(
@@ -80,6 +83,7 @@ export function mergeGuildPluginRow(input: {
   slashCommandsEnabled?: boolean;
   slashPublishError?: string | null;
   slashCollisionNotes?: PluginSlashCollision[] | null;
+  outlookMailboxConnected?: boolean;
 }): GuildPluginViewRow {
   const environmentKeys = input.plugin.environment ?? [];
   const environment = buildGuildPluginEnvironmentFields(
@@ -98,6 +102,9 @@ export function mergeGuildPluginRow(input: {
   const slashCommands = input.slashCommands ?? [];
   const showSlashControl =
     input.plugin.status === "ok" && slashCommands.length > 0;
+  const showOutlookMailboxControl =
+    input.plugin.status === "ok" &&
+    input.plugin.pluginId === SPACELAB_ROSTER_PLUGIN_ID;
 
   return {
     id: input.plugin.id,
@@ -120,6 +127,10 @@ export function mergeGuildPluginRow(input: {
     showSlashControl,
     slashPublishError: input.slashPublishError ?? null,
     slashCollisionNotes: input.slashCollisionNotes ?? [],
+    showOutlookMailboxControl,
+    outlookMailboxConnected: showOutlookMailboxControl
+      ? (input.outlookMailboxConnected ?? false)
+      : false,
   };
 }
 

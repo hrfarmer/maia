@@ -71,6 +71,13 @@
       "when": 1760900000000,
       "tag": "0009_plugin_slash_commands",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1761000000000,
+      "tag": "0010_guild_plugin_oauth_tokens",
+      "breakpoints": true
     }
   ]
 }

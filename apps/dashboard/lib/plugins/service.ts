@@ -11,6 +11,7 @@ import {
   getLatestPluginScan,
   listGuildPluginEnvValuesForGuild,
   listGuildPluginSettingsForGuild,
+  guildPluginOauthTokenConnected,
   setGuildPluginCronExpression,
   setGuildPluginEnabled,
   setGuildPluginSlashCommandsEnabled,
@@ -19,6 +20,7 @@ import {
 } from "@maia/db";
 import { syncGuildApplicationCommandsToDiscord } from "@/lib/guild-application-commands/sync";
 import type { PluginSlashCollision } from "@maia/plugins";
+import { SPACELAB_ROSTER_PLUGIN_ID } from "@maia/microsoft";
 import { planAlwaysOnConfigNotifications } from "./always-on-notify";
 import { applyGuildPluginValuePatch, mergeGuildPluginRow } from "./guild-view";
 
@@ -68,6 +70,12 @@ export async function getGuildPluginsView(db: Db, guildId: string) {
     valuesByPlugin.set(row.pluginId, map);
   }
 
+  const outlookConnected = await guildPluginOauthTokenConnected(
+    db,
+    guildId,
+    SPACELAB_ROSTER_PLUGIN_ID,
+  );
+
   const plugins = scan.plugins.map((plugin) =>
     mergeGuildPluginRow({
       plugin: {
@@ -100,6 +108,10 @@ export async function getGuildPluginsView(db: Db, guildId: string) {
       slashCollisionNotes: plugin.pluginId
         ? (slashCollisionsByPlugin.get(plugin.pluginId) ?? [])
         : [],
+      outlookMailboxConnected:
+        plugin.pluginId === SPACELAB_ROSTER_PLUGIN_ID
+          ? outlookConnected
+          : false,
     }),
   );
 

@@ -19,6 +19,8 @@ env:
   AUTH_URL: http://localhost:3000
   NEXT_PUBLIC_DISCORD_CLIENT_ID: "123456789012345678"
   NEXT_PUBLIC_BASE_URL: http://localhost:3000
+  MICROSOFT_CLIENT_ID: ci-microsoft-client-id-placeholder
+  MICROSOFT_CLIENT_SECRET: ci-microsoft-client-secret-placeholder
 
 jobs:
   checks:
