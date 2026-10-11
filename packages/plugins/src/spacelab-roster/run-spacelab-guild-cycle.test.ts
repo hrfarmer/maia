@@ -6,6 +6,7 @@ import {
   SYNTHETIC_LAB_ROSTER_EXPORT_INVALID_ROW,
 } from "./fixture.js";
 import { runSpacelabGuildCycle } from "./run-spacelab-guild-cycle.js";
+import { startSpacelabMinutePoll } from "./spacelab-minute-poll.js";
 import { FakeGraphMailbox } from "./test-fake-graph-mailbox.js";
 import type { SpacelabCycleState } from "./maia-spacelab-plugin-api.js";
 
@@ -220,18 +221,25 @@ describe("runSpacelabGuildCycle", () => {
       adaptLinksRevision: 0,
       lastProcessedAdaptLinksRevision: 0,
     };
+    const memberRoleCalls: string[] = [];
     const result = await runSpacelabGuildCycle({
       config: {
         pluginUrl: "http://127.0.0.1:9",
         pluginToken: "token",
         guildId: "guild-1",
-        fetchImpl: createMaiaFetch({ cycle, rosterColumn: "Subteam", accessToken: "missing" }),
+        fetchImpl: createMaiaFetch({
+          cycle,
+          rosterColumn: "Subteam",
+          accessToken: "missing",
+          memberRoleCalls,
+        }),
       },
       graph,
     });
     assert.equal(result.skippedReason, "mailbox_not_connected");
     assert.equal(graph.inbox.length, 1);
     assert.deepEqual(graph.archived, []);
+    assert.equal(memberRoleCalls.length, 0);
   });
 
   it("records token refresh failure without roles or archive changes", async () => {
@@ -554,5 +562,160 @@ describe("runSpacelabGuildCycle", () => {
     });
     assert.ok(memberRoleCalls.length > 0);
     assert.equal(cycle.lastProcessedAdaptLinksRevision, 2);
+  });
+
+  it("clears the failure list when a new roster message is ingested", async () => {
+    const graph = new FakeGraphMailbox();
+    graph.inbox.push(
+      rosterMessage("new-roster", "2026-01-03T00:00:00Z", SYNTHETIC_LAB_ROSTER_EXPORT),
+    );
+    const cycle: SpacelabCycleState = {
+      lastCycleAt: null,
+      lastError: null,
+      lastParsedMessageId: null,
+      pendingArchiveMessageIds: [],
+      adaptLinksRevision: 0,
+      lastProcessedAdaptLinksRevision: 0,
+    };
+    const mockState = {
+      cycle,
+      rosterColumn: "Subteam",
+      links: { Alpha: "role-alpha" },
+      failures: [{ memberKey: "user.a", discordHandle: "user.a", attempts: 2 }],
+    };
+    await runSpacelabGuildCycle({
+      config: {
+        pluginUrl: "http://127.0.0.1:9",
+        pluginToken: "token",
+        guildId: "guild-1",
+        fetchImpl: createMaiaFetch(mockState),
+      },
+      graph,
+    });
+    assert.deepEqual(mockState.failures, []);
+  });
+
+  it("does not call the plugin message-send API during a full cycle with failures", async () => {
+    const graph = new FakeGraphMailbox();
+    graph.inbox.push(
+      rosterMessage("roster-1", "2026-01-02T00:00:00Z", SYNTHETIC_LAB_ROSTER_EXPORT),
+    );
+    const cycle: SpacelabCycleState = {
+      lastCycleAt: null,
+      lastError: null,
+      lastParsedMessageId: null,
+      pendingArchiveMessageIds: [],
+      adaptLinksRevision: 0,
+      lastProcessedAdaptLinksRevision: 0,
+    };
+    const fetchUrls: string[] = [];
+    const baseFetch = createMaiaFetch({
+      cycle,
+      rosterColumn: "Subteam",
+      links: { Alpha: "role-alpha" },
+    });
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const url =
+        typeof input === "string"
+          ? new URL(input)
+          : input instanceof URL
+            ? input
+            : new URL(input.url);
+      const method = init?.method ?? (input instanceof Request ? input.method : "GET");
+      fetchUrls.push(`${method} ${url.pathname}`);
+      if (methodIsPut(init, input) && url.pathname.includes("/roles/")) {
+        return new Response("discord down", { status: 503 });
+      }
+      return baseFetch(input, init);
+    };
+    await runSpacelabGuildCycle({
+      config: {
+        pluginUrl: "http://127.0.0.1:9",
+        pluginToken: "token",
+        guildId: "guild-1",
+        fetchImpl,
+      },
+      graph,
+    });
+    assert.ok(
+      !fetchUrls.some(
+        (entry) => entry.startsWith("POST ") && entry.includes("/messages"),
+      ),
+    );
+  });
+
+  it("after mailbox disconnect, a later cycle changes no Discord roles", async () => {
+    const graph = new FakeGraphMailbox();
+    const cycle: SpacelabCycleState = {
+      lastCycleAt: new Date("2026-01-01T00:00:00Z"),
+      lastError: null,
+      lastParsedMessageId: "old-roster",
+      pendingArchiveMessageIds: [],
+      adaptLinksRevision: 0,
+      lastProcessedAdaptLinksRevision: 0,
+    };
+    const memberRoleCalls: string[] = [];
+    await runSpacelabGuildCycle({
+      config: {
+        pluginUrl: "http://127.0.0.1:9",
+        pluginToken: "token",
+        guildId: "guild-1",
+        fetchImpl: createMaiaFetch({
+          cycle,
+          rosterColumn: "Subteam",
+          accessToken: "missing",
+          links: { Alpha: "role-alpha" },
+          rosterRows: [
+            {
+              discordHandle: "user.a",
+              status: "Active",
+              adaptRoleValues: ["Alpha"],
+            },
+          ],
+          memberRoleCalls,
+        }),
+      },
+      graph,
+    });
+    assert.equal(memberRoleCalls.length, 0);
+    assert.equal(cycle.lastError, "mailbox_not_connected");
+  });
+
+  it("skips cycles for disabled guilds without calling Discord role APIs", async () => {
+    const cycles: string[] = [];
+    let resolveTick: (() => void) | undefined;
+    const tickPromise = new Promise<void>((resolve) => {
+      resolveTick = resolve;
+    });
+    startSpacelabMinutePoll({
+      pluginUrl: "http://127.0.0.1:9",
+      pluginToken: "token",
+      graph: {
+        listInboxMessages: async () => [],
+        moveMessageToArchive: async () => {},
+      },
+      fetchImpl: async (input) => {
+        const url =
+          typeof input === "string"
+            ? new URL(input)
+            : input instanceof URL
+              ? input
+              : new URL(input.url);
+        if (url.pathname === "/v1/plugins/spacelab-roster/enabled-guilds") {
+          resolveTick?.();
+          return new Response(JSON.stringify({ guildIds: [] }), { status: 200 });
+        }
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      },
+      setIntervalImpl: () =>
+        ({
+          unref() {},
+        }) as ReturnType<typeof setInterval>,
+      runCycle: async ({ config }) => {
+        cycles.push(config.guildId);
+      },
+    });
+    await tickPromise;
+    assert.deepEqual(cycles, []);
   });
 });

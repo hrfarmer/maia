@@ -2,13 +2,7 @@ import { buildSpacelabCycleStatusView, getDb } from "@maia/db";
 import { requireSessionGuildAccess } from "@/lib/session-auth";
 import { Permission } from "@maia/discord";
 import { DEV_GUILD_ID, devHelpersEnabled } from "@/lib/dev-fixtures";
-
-const devCycleStatus = {
-  lastCycleAt: new Date("2026-01-15T12:00:00.000Z").toISOString(),
-  lastError: null,
-  pendingMembers: [{ discordHandle: "user.retry" }],
-  exhaustedMembers: [{ discordHandle: "user.exhausted" }],
-};
+import { getDevSpacelabCycleStatus } from "@/lib/dev-spacelab-cycle";
 
 export async function GET(
   _request: Request,
@@ -25,7 +19,7 @@ export async function GET(
   }
 
   if (devHelpersEnabled() && guildId === DEV_GUILD_ID) {
-    return Response.json(devCycleStatus);
+    return Response.json(getDevSpacelabCycleStatus());
   }
 
   const db = getDb();

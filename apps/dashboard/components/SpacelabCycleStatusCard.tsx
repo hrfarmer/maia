@@ -2,13 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Label } from "@/components/ui/label";
-
-interface SpacelabCycleStatus {
-  lastCycleAt: string | null;
-  lastError: string | null;
-  pendingMembers: Array<{ discordHandle: string }>;
-  exhaustedMembers: Array<{ discordHandle: string }>;
-}
+import {
+  formatSpacelabLastCycleLabel,
+  formatSpacelabLastErrorLabel,
+  type SpacelabCycleStatusPayload,
+} from "@/lib/plugins/spacelab-cycle-display";
 
 interface SpacelabCycleStatusCardProps {
   guildId: string;
@@ -17,7 +15,7 @@ interface SpacelabCycleStatusCardProps {
 export function SpacelabCycleStatusCard({
   guildId,
 }: SpacelabCycleStatusCardProps) {
-  const [status, setStatus] = useState<SpacelabCycleStatus | null>(null);
+  const [status, setStatus] = useState<SpacelabCycleStatusPayload | null>(null);
 
   const loadStatus = useCallback(async () => {
     const res = await fetch(
@@ -26,7 +24,7 @@ export function SpacelabCycleStatusCard({
     if (!res.ok) {
       return;
     }
-    setStatus((await res.json()) as SpacelabCycleStatus);
+    setStatus((await res.json()) as SpacelabCycleStatusPayload);
   }, [guildId]);
 
   useEffect(() => {
@@ -55,15 +53,13 @@ export function SpacelabCycleStatusCard({
         <div>
           <dt className="text-muted-foreground">Last cycle</dt>
           <dd data-testid="spacelab-last-cycle">
-            {status.lastCycleAt
-              ? new Date(status.lastCycleAt).toLocaleString()
-              : "Never"}
+            {formatSpacelabLastCycleLabel(status.lastCycleAt)}
           </dd>
         </div>
         <div>
           <dt className="text-muted-foreground">Last error</dt>
           <dd data-testid="spacelab-last-error">
-            {status.lastError ?? "None"}
+            {formatSpacelabLastErrorLabel(status.lastError)}
           </dd>
         </div>
       </dl>

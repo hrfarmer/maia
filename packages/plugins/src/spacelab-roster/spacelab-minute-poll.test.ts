@@ -66,4 +66,47 @@ describe("Space Lab minute poll", () => {
     assert.deepEqual(cycles.sort(), ["guild-a", "guild-b"]);
     assert.equal(SPACELAB_POLL_INTERVAL_MS, 60_000);
   });
+
+  it("does not run a cycle for a guild that is not enabled", async () => {
+    const cycles: string[] = [];
+    let resolveTick: (() => void) | undefined;
+    const tickPromise = new Promise<void>((resolve) => {
+      resolveTick = resolve;
+    });
+
+    startSpacelabMinutePoll({
+      pluginUrl: "http://127.0.0.1:9",
+      pluginToken: "token",
+      graph: {
+        listInboxMessages: async () => [],
+        moveMessageToArchive: async () => {},
+      },
+      fetchImpl: async (input) => {
+        const url =
+          typeof input === "string"
+            ? new URL(input)
+            : input instanceof URL
+              ? input
+              : new URL(input.url);
+        if (url.pathname === "/v1/plugins/spacelab-roster/enabled-guilds") {
+          return new Response(JSON.stringify({ guildIds: ["guild-enabled"] }), {
+            status: 200,
+          });
+        }
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      },
+      setIntervalImpl: () =>
+        ({
+          unref() {},
+        }) as ReturnType<typeof setInterval>,
+      runCycle: async ({ config }) => {
+        cycles.push(config.guildId);
+        resolveTick?.();
+      },
+    });
+
+    await tickPromise;
+    assert.deepEqual(cycles, ["guild-enabled"]);
+    assert.ok(!cycles.includes("guild-disabled"));
+  });
 });
