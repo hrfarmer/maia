@@ -67,7 +67,26 @@ describe("AlwaysOnSupervisor", () => {
     assert.equal(spawnCount, 1);
   });
 
-  it("restarts existing processes when refresh requests it", async () => {
+  it("does not restart when resync sees an unchanged runnable", async () => {
+    let spawnCount = 0;
+    const supervisor = new AlwaysOnSupervisor({
+      db: {} as Db,
+      tokenRegistry: new PluginTokenRegistry(),
+      pluginApiUrl: "http://127.0.0.1:3847",
+      listAlwaysOnPlugins: async () => [demoPlugin()],
+      spawnSupervised: () => {
+        spawnCount += 1;
+        return mockHandle({});
+      },
+    });
+
+    await supervisor.syncFromLatestScan({ restartExisting: false });
+    await supervisor.syncFromLatestScan({ restartExisting: false });
+    await supervisor.shutdown();
+    assert.equal(spawnCount, 1);
+  });
+
+  it("restarts existing processes when the runnable changes or restart is forced", async () => {
     let spawnCount = 0;
     const supervisor = new AlwaysOnSupervisor({
       db: {} as Db,
@@ -82,6 +101,29 @@ describe("AlwaysOnSupervisor", () => {
 
     await supervisor.syncFromLatestScan({ restartExisting: false });
     await supervisor.syncFromLatestScan({ restartExisting: true });
+    await supervisor.shutdown();
+    assert.equal(spawnCount, 2);
+  });
+
+  it("restarts when the discovered command changes", async () => {
+    let spawnCount = 0;
+    let command: string[] = ["noop"];
+    const supervisor = new AlwaysOnSupervisor({
+      db: {} as Db,
+      tokenRegistry: new PluginTokenRegistry(),
+      pluginApiUrl: "http://127.0.0.1:3847",
+      listAlwaysOnPlugins: async () => [
+        { ...demoPlugin(), command: [...command] },
+      ],
+      spawnSupervised: () => {
+        spawnCount += 1;
+        return mockHandle({});
+      },
+    });
+
+    await supervisor.syncFromLatestScan({ restartExisting: false });
+    command = ["node", "main.js"];
+    await supervisor.syncFromLatestScan({ restartExisting: false });
     await supervisor.shutdown();
     assert.equal(spawnCount, 2);
   });

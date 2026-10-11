@@ -13,6 +13,7 @@ const TOKEN_PREFIX = "mplg_";
 
 export class PluginTokenRegistry {
   private readonly byToken = new Map<string, RegisteredPluginToken>();
+  private readonly recentlyRevoked = new Set<string>();
 
   mintInvocationToken(guildId: string, pluginId: string): string {
     const token = `${TOKEN_PREFIX}${randomBytes(24).toString("base64url")}`;
@@ -45,7 +46,13 @@ export class PluginTokenRegistry {
   }
 
   revoke(token: string) {
-    this.byToken.delete(token);
+    if (this.byToken.delete(token)) {
+      this.recentlyRevoked.add(token);
+    }
+  }
+
+  wasRecentlyRevoked(token: string): boolean {
+    return this.recentlyRevoked.has(token);
   }
 
   lookup(token: string): RegisteredPluginToken | null {

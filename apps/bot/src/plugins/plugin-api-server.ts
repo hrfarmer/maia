@@ -1,6 +1,7 @@
 import http from "node:http";
 import type { Db } from "@maia/db";
 import {
+  classifyPluginApiForbidden,
   loadGuildPluginValuesForApi,
   resolvePluginTokenForGuild,
 } from "./plugin-api-access.js";
@@ -134,6 +135,16 @@ export function createPluginApiServer(options: PluginApiServerOptions) {
       }
       const entry = await assertGuildApiAccess(token, guildId);
       if (!entry) {
+        const tokenEntry = options.tokenRegistry.lookup(token);
+        const reason = await classifyPluginApiForbidden(
+          options.db,
+          options.tokenRegistry,
+          token,
+          guildId,
+        );
+        console.warn(
+          `plugin_api_forbidden reason=${reason} plugin=${tokenEntry?.pluginId ?? "unknown"} guild=${guildId} path=${url.pathname}`,
+        );
         sendJson(res, 403, { error: "forbidden" });
         return;
       }

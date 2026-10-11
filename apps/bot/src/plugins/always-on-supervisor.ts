@@ -10,6 +10,7 @@ import {
   type Db,
   type LatestRunnablePlugin,
 } from "@maia/db";
+import { alwaysOnRunnableChanged } from "./always-on-runnable-fingerprint.js";
 import { formatPluginLogLine } from "./plugin-run-audit.js";
 import type { PluginTokenRegistry } from "./token-registry.js";
 
@@ -27,6 +28,7 @@ interface ManagedAlwaysOnProcess {
   handle: SupervisedPluginProcessHandle;
   token: string;
   stopping: boolean;
+  stopPromise?: Promise<void>;
 }
 
 export class AlwaysOnSupervisor {
@@ -37,6 +39,7 @@ export class AlwaysOnSupervisor {
   private readonly listAlwaysOnPlugins: () => Promise<LatestRunnablePlugin[]>;
   private readonly spawnSupervised: typeof spawnSupervisedPluginProcess;
   private readonly processes = new Map<string, ManagedAlwaysOnProcess>();
+  private syncChain: Promise<void> = Promise.resolve();
 
   constructor(options: AlwaysOnSupervisorOptions) {
     this.db = options.db;
@@ -60,16 +63,28 @@ export class AlwaysOnSupervisor {
   }
 
   async shutdown() {
-    for (const pluginId of [...this.processes.keys()]) {
-      await this.stopPlugin(pluginId);
-    }
+    await this.syncFromLatestScan({ restartExisting: false, stopAll: true });
   }
 
-  async syncFromLatestScan(input: { restartExisting: boolean }) {
-    const alwaysOn = await this.listAlwaysOnPlugins();
+  async syncFromLatestScan(input: {
+    restartExisting?: boolean;
+    stopAll?: boolean;
+  }) {
+    const run = this.syncChain.then(() => this.syncFromLatestScanImpl(input));
+    this.syncChain = run.catch(() => {});
+    return run;
+  }
+
+  private async syncFromLatestScanImpl(input: {
+    restartExisting?: boolean;
+    stopAll?: boolean;
+  }) {
+    const alwaysOn = input.stopAll
+      ? []
+      : await this.listAlwaysOnPlugins();
     const activeIds = new Set(alwaysOn.map((plugin) => plugin.pluginId));
 
-    for (const pluginId of this.processes.keys()) {
+    for (const pluginId of [...this.processes.keys()]) {
       if (!activeIds.has(pluginId)) {
         await this.stopPlugin(pluginId);
       }
@@ -77,14 +92,24 @@ export class AlwaysOnSupervisor {
 
     for (const plugin of alwaysOn) {
       const existing = this.processes.get(plugin.pluginId);
-      if (existing && !input.restartExisting) {
+      if (existing?.stopPromise) {
+        await existing.stopPromise;
+      }
+      const current = this.processes.get(plugin.pluginId);
+      if (!current) {
+        await this.startPlugin(plugin);
         continue;
       }
-      if (existing) {
-        await this.restartPlugin(plugin);
-      } else {
-        await this.startPlugin(plugin);
+      if (current.stopping) {
+        continue;
       }
+      const forceRestart = input.restartExisting === true;
+      const runnableChanged = alwaysOnRunnableChanged(current.plugin, plugin);
+      if (!forceRestart && !runnableChanged) {
+        current.plugin = plugin;
+        continue;
+      }
+      await this.restartPlugin(plugin);
     }
   }
 
@@ -125,6 +150,9 @@ export class AlwaysOnSupervisor {
 
   private async restartPlugin(plugin: LatestRunnablePlugin) {
     await this.stopPlugin(plugin.pluginId);
+    if (this.processes.has(plugin.pluginId)) {
+      return;
+    }
     await this.startPlugin(plugin);
   }
 
@@ -133,14 +161,22 @@ export class AlwaysOnSupervisor {
     if (!managed) {
       return;
     }
+    if (managed.stopPromise) {
+      await managed.stopPromise;
+      return;
+    }
     managed.stopping = true;
-    this.processes.delete(pluginId);
-    managed.handle.kill("SIGTERM");
-    await managed.handle.waitForExit().catch(() => ({
-      exitCode: null,
-      signal: null,
-    }));
-    this.tokenRegistry.revoke(managed.token);
+    const stopPromise = (async () => {
+      managed.handle.kill("SIGTERM");
+      await managed.handle.waitForExit().catch(() => ({
+        exitCode: null,
+        signal: null,
+      }));
+      this.processes.delete(pluginId);
+      this.tokenRegistry.revoke(managed.token);
+    })();
+    managed.stopPromise = stopPromise;
+    await stopPromise;
   }
 
   private async handleUnexpectedExit(pluginId: string) {
@@ -148,9 +184,17 @@ export class AlwaysOnSupervisor {
     if (!managed || managed.stopping) {
       return;
     }
+    if (managed.stopPromise) {
+      await managed.stopPromise;
+      return;
+    }
     const token = managed.token;
-    this.processes.delete(pluginId);
-    this.tokenRegistry.revoke(token);
+    managed.stopping = true;
+    managed.stopPromise = Promise.resolve().then(() => {
+      this.processes.delete(pluginId);
+      this.tokenRegistry.revoke(token);
+    });
+    await managed.stopPromise;
 
     const alwaysOn = await this.listAlwaysOnPlugins();
     const plugin = alwaysOn.find((entry) => entry.pluginId === pluginId);

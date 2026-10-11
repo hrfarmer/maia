@@ -15,7 +15,7 @@ const CRITERIA = [
     test: "apps/bot/src/plugins/plugin-supervisor.test.ts",
   },
   {
-    id: "refresh-restarts-always-on",
+    id: "refresh-restarts-when-runnable-changed",
     test: "apps/bot/src/plugins/plugin-supervisor.test.ts",
   },
   {

@@ -38,13 +38,18 @@ export function spawnSupervisedPluginProcess(
     child.stderr.on("data", (chunk: string) => input.log!.onStderr(chunk));
   }
 
-  const waitForExit = () =>
-    new Promise<{ exitCode: number | null; signal: NodeJS.Signals | null }>(
-      (resolve, reject) => {
+  let exitResult:
+    | Promise<{ exitCode: number | null; signal: NodeJS.Signals | null }>
+    | undefined;
+  const waitForExit = () => {
+    if (!exitResult) {
+      exitResult = new Promise((resolve, reject) => {
         child.on("error", reject);
         child.on("close", (exitCode, signal) => resolve({ exitCode, signal }));
-      },
-    );
+      });
+    }
+    return exitResult;
+  };
 
   return {
     writeStdin(line: string) {

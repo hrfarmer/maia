@@ -13,8 +13,12 @@ export function startPluginRefreshLoop(
   db: Db,
   hooks?: { afterRefreshScan?: () => Promise<void>; rest?: REST },
 ) {
+  let refreshInFlight = false;
   const timer = setInterval(() => {
     void (async () => {
+      if (refreshInFlight) {
+        return;
+      }
       const [requestedAt, latestScan] = await Promise.all([
         getPluginRefreshRequestedAt(db),
         getLatestPluginScan(db),
@@ -26,11 +30,16 @@ export function startPluginRefreshLoop(
       if (!pending) {
         return;
       }
-      await runPluginScan(db, "refresh", {
-        afterScan: hooks?.afterRefreshScan,
-        rest: hooks?.rest,
-        republishSlashCommands: Boolean(hooks?.rest),
-      });
+      refreshInFlight = true;
+      try {
+        await runPluginScan(db, "refresh", {
+          afterScan: hooks?.afterRefreshScan,
+          rest: hooks?.rest,
+          republishSlashCommands: Boolean(hooks?.rest),
+        });
+      } finally {
+        refreshInFlight = false;
+      }
     })().catch((error) => {
       console.error("Plugin refresh scan failed", error);
     });

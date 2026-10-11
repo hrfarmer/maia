@@ -233,7 +233,7 @@ async function bootstrap() {
 
   startPluginRefreshLoop(db, {
     afterRefreshScan: async () => {
-      await alwaysOnSupervisor.syncFromLatestScan({ restartExisting: true });
+      await alwaysOnSupervisor.syncFromLatestScan({ restartExisting: false });
     },
     rest,
   });

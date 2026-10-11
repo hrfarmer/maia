@@ -35,6 +35,20 @@ setTimeout(()=>{console.log(buf);process.exit(0);},200);`,
     assert.equal(stdout.trim(), '{"guildId":"1","change":"enabled"}');
   });
 
+  it("resolves every waitForExit caller when the process exits once", async () => {
+    const handle = spawnSupervisedPluginProcess({
+      cwd: process.cwd(),
+      command: [node, "-e", "setTimeout(() => process.exit(0), 10);"],
+      env: { NODE_ENV: "test" },
+      spawnProcess: spawn,
+    });
+    const first = handle.waitForExit();
+    const second = handle.waitForExit();
+    const [a, b] = await Promise.all([first, second]);
+    assert.equal(a.exitCode, 0);
+    assert.deepEqual(b, a);
+  });
+
   it("uses only the provided env without inheriting the bot", async () => {
     let stdout = "";
     const handle = spawnSupervisedPluginProcess({
