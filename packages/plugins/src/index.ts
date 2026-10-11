@@ -6,13 +6,24 @@ export {
 } from "./discover.js";
 export {
   INVOCATION_FORBIDDEN_EVENTS,
+  MEMBER_ROLE_PLUGIN_EVENTS,
   PLUGIN_EVENTS,
+  isMemberRolePluginEvent,
+  type MemberRolePluginEvent,
   type PluginEvent,
 } from "./events.js";
+export {
+  buildPluginGatewayEventStdin,
+  listPluginsSubscribedToEvent,
+  resolveMaxConcurrentInvocations,
+  type PluginGatewayEventStdin,
+  type PluginEventRoutingCandidate,
+} from "./gateway-event-delivery.js";
 export {
   PLUGIN_ID_CLASH_ERROR,
   PLUGIN_MANIFEST_FILENAME,
   RESERVED_ENV_KEYS,
+  DEFAULT_MAX_CONCURRENT_INVOCATIONS,
   PluginManifestError,
   parsePluginManifest,
   type PluginEnvironmentKey,

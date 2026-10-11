@@ -29,6 +29,7 @@ export interface ExecutePluginRunInput {
   tokenRegistry: PluginTokenRegistry;
   log: (line: string) => void;
   trigger?: PluginRunTrigger;
+  runProcess?: typeof runPluginProcess;
 }
 
 export async function executePluginRun(input: ExecutePluginRunInput) {
@@ -72,8 +73,10 @@ export async function executePluginRun(input: ExecutePluginRunInput) {
   let success = false;
   let errorMessage: string | undefined;
 
+  const runProcess = input.runProcess ?? runPluginProcess;
+
   try {
-    const result = await runPluginProcess(
+    const result = await runProcess(
       {
         cwd,
         command: input.plugin.command,

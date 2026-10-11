@@ -108,6 +108,7 @@ export const discoveredPlugins = pgTable(
     commandJson: text("command_json"),
     environmentJson: text("environment_json"),
     invocationTimeLimitMs: integer("invocation_time_limit_ms"),
+    maxConcurrentInvocations: integer("max_concurrent_invocations"),
   },
   (table) => [index("discovered_plugins_scan_id_idx").on(table.scanId)],
 );

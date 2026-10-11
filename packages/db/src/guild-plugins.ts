@@ -1,5 +1,8 @@
 import { and, desc, eq, isNotNull, isNull, notInArray } from "drizzle-orm";
 import type { Db } from "./client.js";
+
+/** Keep in sync with @maia/plugins DEFAULT_MAX_CONCURRENT_INVOCATIONS. */
+const DEFAULT_MAX_CONCURRENT_INVOCATIONS = 8;
 import {
   guildPluginEnvValues,
   guildPluginSettings,
@@ -20,6 +23,8 @@ export interface LatestRunnablePlugin {
   command: string[];
   environment: StoredPluginEnvironmentKey[];
   invocationTimeLimitMs: number | null;
+  subscribedEvents: string[];
+  maxConcurrentInvocations: number;
 }
 
 function parseJsonArray<T>(raw: string | null, fallback: T): T {
@@ -49,6 +54,14 @@ export async function getLatestOkPluginsByPluginId(
     if (row.status !== "ok" || !row.pluginId) {
       continue;
     }
+    const subscribedEvents = parseJsonArray<string[]>(
+      row.subscribedEvents,
+      [],
+    );
+    const maxConcurrentInvocations =
+      row.lifetime === "always-on"
+        ? DEFAULT_MAX_CONCURRENT_INVOCATIONS
+        : (row.maxConcurrentInvocations ?? DEFAULT_MAX_CONCURRENT_INVOCATIONS);
     map.set(row.pluginId, {
       pluginId: row.pluginId,
       directoryName: row.directoryName,
@@ -59,6 +72,8 @@ export async function getLatestOkPluginsByPluginId(
         [],
       ),
       invocationTimeLimitMs: row.invocationTimeLimitMs,
+      subscribedEvents,
+      maxConcurrentInvocations,
     });
   }
   return map;

@@ -24,6 +24,7 @@ export interface DiscoveredPluginRecord {
     secret: boolean;
   }> | null;
   invocationTimeLimitMs: number | null;
+  maxConcurrentInvocations: number | null;
 }
 
 export interface PluginScanRecord {
@@ -50,6 +51,7 @@ export interface PersistDiscoveredPluginInput {
     secret: boolean;
   }> | null;
   invocationTimeLimitMs?: number | null;
+  maxConcurrentInvocations?: number | null;
 }
 
 const BOT_STATE_ID = "default";
@@ -125,6 +127,7 @@ export async function persistPluginScan(
           ? JSON.stringify(plugin.environment)
           : null,
         invocationTimeLimitMs: plugin.invocationTimeLimitMs ?? null,
+        maxConcurrentInvocations: plugin.maxConcurrentInvocations ?? null,
       })),
     );
   }
@@ -147,6 +150,7 @@ export async function persistPluginScan(
       command: plugin.command ?? null,
       environment: plugin.environment ?? null,
       invocationTimeLimitMs: plugin.invocationTimeLimitMs ?? null,
+      maxConcurrentInvocations: plugin.maxConcurrentInvocations ?? null,
     })),
   };
 }
@@ -201,6 +205,7 @@ export async function getLatestPluginScan(
       command: parseJsonStringArray(plugin.commandJson),
       environment: parseEnvironmentJson(plugin.environmentJson),
       invocationTimeLimitMs: plugin.invocationTimeLimitMs,
+      maxConcurrentInvocations: plugin.maxConcurrentInvocations,
     })),
   };
 }

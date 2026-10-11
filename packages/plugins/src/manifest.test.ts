@@ -13,7 +13,29 @@ describe("parsePluginManifest", () => {
       command: ["node", "index.js"],
       environment: [],
       invocationTimeLimitMs: null,
+      maxConcurrentInvocations: null,
     });
+  });
+
+  it("accepts invocation maxConcurrentInvocations and rejects it on always-on", () => {
+    assert.deepEqual(
+      parsePluginManifest(
+        validManifest({
+          lifetime: "invocation",
+          maxConcurrentInvocations: 2,
+        }),
+      ).maxConcurrentInvocations,
+      2,
+    );
+    assert.throws(
+      () =>
+        parsePluginManifest(
+          validManifest({ maxConcurrentInvocations: 2 }),
+        ),
+      (error: unknown) =>
+        error instanceof PluginManifestError &&
+        error.message.includes("maxConcurrentInvocations"),
+    );
   });
 
   it("rejects unreadable manifest shape", () => {
