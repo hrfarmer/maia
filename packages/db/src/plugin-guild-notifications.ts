@@ -5,7 +5,8 @@ import { pluginGuildConfigNotifications } from "./schema.js";
 export type PluginGuildConfigChangeType =
   | "enabled"
   | "disabled"
-  | "values_saved";
+  | "values_saved"
+  | "adapt_roles_saved";
 
 export async function enqueuePluginGuildConfigNotification(
   db: Db,

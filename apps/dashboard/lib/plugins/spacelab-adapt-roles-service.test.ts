@@ -12,7 +12,9 @@ import {
   type SpacelabRosterRepository,
 } from "./spacelab-adapt-roles-service.js";
 
-function createMemoryRepository(): SpacelabRosterRepository {
+function createMemoryRepository(): SpacelabRosterRepository & {
+  failuresCleared: number;
+} {
   const state = {
     parsed: null as {
       rows: ParsedRosterRow[];
@@ -20,6 +22,7 @@ function createMemoryRepository(): SpacelabRosterRepository {
       parsedAt: Date;
     } | null,
     links: new Map<string, string>(),
+    failuresCleared: 0,
   };
   return {
     async getParsedRoster() {
@@ -40,6 +43,12 @@ function createMemoryRepository(): SpacelabRosterRepository {
         return;
       }
       state.links.set(adaptValue, discordRoleId);
+    },
+    async clearReconcileFailures() {
+      state.failuresCleared += 1;
+    },
+    get failuresCleared() {
+      return state.failuresCleared;
     },
   };
 }
@@ -97,6 +106,13 @@ describe("spacelab adapt roles service", () => {
     const beta = view.adaptRoleRows.find((row) => row.adaptValue === "Beta");
     assert.equal(alpha?.linkedRoleId, "role-1");
     assert.equal(beta?.linkedRoleId, "role-1");
+  });
+
+  it("clears reconcile failures when adapt role links are saved", async () => {
+    const repo = createMemoryRepository();
+    await ingestSpacelabRosterMessage(repo, SYNTHETIC_LAB_ROSTER_EXPORT, "Subteam");
+    await saveSpacelabAdaptRoleLinks(repo, { Alpha: "role-1" });
+    assert.equal(repo.failuresCleared, 1);
   });
 
   it("keeps a saved link when the value is missing from a later successful parse", async () => {

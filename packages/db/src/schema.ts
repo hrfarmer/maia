@@ -210,6 +210,33 @@ export const spacelabAdaptRoleLinks = pgTable(
   (table) => [primaryKey({ columns: [table.guildId, table.adaptValue] })],
 );
 
+export const spacelabRememberedMembers = pgTable(
+  "spacelab_remembered_members",
+  {
+    guildId: varchar("guild_id", { length: 20 })
+      .notNull()
+      .references(() => guilds.id, { onDelete: "cascade" }),
+    discordUserId: text("discord_user_id").notNull(),
+    discordHandle: text("discord_handle").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.guildId, table.discordUserId] }),
+  ],
+);
+
+export const spacelabReconcileFailures = pgTable(
+  "spacelab_reconcile_failures",
+  {
+    guildId: varchar("guild_id", { length: 20 })
+      .notNull()
+      .references(() => guilds.id, { onDelete: "cascade" }),
+    memberKey: text("member_key").notNull(),
+    discordHandle: text("discord_handle").notNull(),
+    attempts: integer("attempts").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.guildId, table.memberKey] })],
+);
+
 export const pluginGuildConfigNotifications = pgTable(
   "plugin_guild_config_notifications",
   {

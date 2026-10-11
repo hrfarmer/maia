@@ -62,7 +62,8 @@ export function buildAlwaysOnPluginProcessEnvironment(input: {
 export type AlwaysOnGuildConfigChange =
   | "enabled"
   | "disabled"
-  | "values_saved";
+  | "values_saved"
+  | "adapt_roles_saved";
 
 export interface AlwaysOnGuildConfigStdin {
   guildId: string;

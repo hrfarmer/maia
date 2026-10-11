@@ -18,7 +18,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "generate": "drizzle-kit generate",
     "migrate": "tsx src/migrate.ts",
-    "test": "node --import tsx --test src/plugins.test.ts src/guild-plugins-logic.test.ts src/plugin-guild-notifications.test.ts src/guild-plugin-slash.test.ts"
+    "test": "node --import tsx --test src/plugins.test.ts src/guild-plugins-logic.test.ts src/plugin-guild-notifications.test.ts src/guild-plugin-slash.test.ts src/spacelab-reconcile.test.ts"
   },
   "dependencies": {
     "@maia/discord": "workspace:*",

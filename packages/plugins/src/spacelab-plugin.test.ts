@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { describe, it } from "node:test";
 import { discoverPlugins } from "./discover.js";
 import {
@@ -36,6 +36,15 @@ describe("Space Lab roster shipped plugin", () => {
     assert.deepEqual(manifest.environment, [
       { key: "ROSTER_COLUMN", required: true, secret: false },
     ]);
+  });
+
+  it("ships a bundled reconcile module built from the TypeScript pass", async () => {
+    const reconcilePath = path.join(spacelabDir, "reconcile.mjs");
+    await fs.access(reconcilePath);
+    const mod = await import(
+      `${pathToFileURL(reconcilePath).href}?t=${Date.now()}`
+    );
+    assert.equal(typeof mod.runSpacelabGuildReconcile, "function");
   });
 
   it("is discovered without executing the plugin command", async () => {

@@ -2,8 +2,13 @@ import { and, eq } from "drizzle-orm";
 import {
   parseLabRosterMessage,
   type ParsedRosterRow,
+  type SavedRosterRow,
   SPACELAB_ROSTER_PLUGIN_ID,
 } from "@maia/plugins";
+import {
+  clearSpacelabReconcileFailures,
+  mergeSavedRosterUserIds,
+} from "./spacelab-reconcile.js";
 import type { Db } from "./client.js";
 import {
   spacelabAdaptRoleLinks,
@@ -11,7 +16,7 @@ import {
 } from "./schema.js";
 
 export interface StoredSpacelabRosterState {
-  rows: ParsedRosterRow[];
+  rows: SavedRosterRow[];
   adaptValues: string[];
   parsedAt: Date;
 }
@@ -27,7 +32,7 @@ export async function getSpacelabGuildRosterState(
     return null;
   }
   return {
-    rows: JSON.parse(row.rowsJson) as ParsedRosterRow[],
+    rows: JSON.parse(row.rowsJson) as SavedRosterRow[],
     adaptValues: JSON.parse(row.adaptValuesJson) as string[],
     parsedAt: row.parsedAt,
   };
@@ -42,7 +47,7 @@ export async function listSpacelabAdaptRoleLinks(db: Db, guildId: string) {
 export async function upsertSpacelabParsedRoster(
   db: Db,
   guildId: string,
-  input: { rows: ParsedRosterRow[]; adaptValues: string[] },
+  input: { rows: SavedRosterRow[]; adaptValues: string[] },
 ) {
   const rowsJson = JSON.stringify(input.rows);
   const adaptValuesJson = JSON.stringify(input.adaptValues);
@@ -106,10 +111,13 @@ export async function ingestSpacelabLabRosterMessage(
   if (!parsed.ok) {
     return { ok: false };
   }
+  const prior = await getSpacelabGuildRosterState(db, guildId);
+  const rows = mergeSavedRosterUserIds(prior?.rows, parsed.rows);
   await upsertSpacelabParsedRoster(db, guildId, {
-    rows: parsed.rows,
+    rows,
     adaptValues: parsed.adaptRoleValues,
   });
+  await clearSpacelabReconcileFailures(db, guildId);
   return { ok: true };
 }
 
