@@ -20,3 +20,21 @@ export {
   type PluginManifest,
 } from "./manifest.js";
 export { resolvePluginsDirectory } from "./paths.js";
+export {
+  buildManualInvocationStdin,
+  buildPluginProcessEnvironment,
+  canEnableGuildPlugin,
+  guildHasRequiredEnvValues,
+  shouldDisableAfterValueChange,
+  MAIA_PLUGIN_TOKEN_ENV,
+  MAIA_PLUGIN_URL_ENV,
+  type GuildPluginValueMap,
+  type ManualInvocationStdin,
+  type PluginRunTrigger,
+} from "./guild-config.js";
+export {
+  runPluginProcess,
+  type ProcessLogSink,
+  type RunPluginProcessInput,
+  type RunPluginProcessResult,
+} from "./process-runner.js";

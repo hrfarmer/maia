@@ -25,6 +25,8 @@ export interface PluginManifest {
   subscribedEvents: string[];
   command: string[];
   environment: PluginEnvironmentKey[];
+  /** Required for invocation plugins; unused for always-on. */
+  invocationTimeLimitMs: number | null;
 }
 
 export class PluginManifestError extends Error {
@@ -91,6 +93,31 @@ function parseSubscribedEvents(value: unknown): string[] {
   return events;
 }
 
+function parseInvocationTimeLimitMs(
+  value: unknown,
+  lifetime: PluginLifetime,
+): number | null {
+  if (lifetime === "always-on") {
+    if (value !== undefined && value !== null) {
+      throw new PluginManifestError(
+        "invocationTimeLimitMs applies only to invocation plugins",
+      );
+    }
+    return null;
+  }
+  if (value === undefined || value === null) {
+    throw new PluginManifestError(
+      "invocationTimeLimitMs is required for invocation plugins",
+    );
+  }
+  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
+    throw new PluginManifestError(
+      "invocationTimeLimitMs must be a positive integer",
+    );
+  }
+  return value;
+}
+
 function parseEnvironment(value: unknown): PluginEnvironmentKey[] {
   if (value === undefined) {
     return [];
@@ -137,6 +164,10 @@ export function parsePluginManifest(raw: unknown): PluginManifest {
   const subscribedEvents = parseSubscribedEvents(record.subscribedEvents);
   const command = parseCommand(record.command);
   const environment = parseEnvironment(record.environment);
+  const invocationTimeLimitMs = parseInvocationTimeLimitMs(
+    record.invocationTimeLimitMs,
+    lifetime,
+  );
 
   if (
     lifetime === "invocation" &&
@@ -154,6 +185,7 @@ export function parsePluginManifest(raw: unknown): PluginManifest {
     subscribedEvents,
     command,
     environment,
+    invocationTimeLimitMs,
   };
 }
 

@@ -36,6 +36,13 @@
       "when": 1760400000000,
       "tag": "0004_plugin_discovery",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1760500000000,
+      "tag": "0005_plugin_guild_config",
+      "breakpoints": true
     }
   ]
 }

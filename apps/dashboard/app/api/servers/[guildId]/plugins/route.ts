@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { Permission } from "@maia/discord";
 import { getDb, getLatestPluginScan } from "@maia/db";
-import { DEV_GUILD_ID, devHelpersEnabled, devPluginScan } from "@/lib/dev-fixtures";
+import {
+  DEV_GUILD_ID,
+  devGuildPlugins,
+  devHelpersEnabled,
+  devPluginScan,
+} from "@/lib/dev-fixtures";
+import { getGuildPluginsView } from "@/lib/plugins/service";
 import { requireSessionGuildAccess } from "@/lib/session-auth";
 
 interface RouteContext {
@@ -43,10 +49,16 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 
   if (devHelpersEnabled() && guildId === DEV_GUILD_ID) {
-    return NextResponse.json({ scan: devPluginScan });
+    return NextResponse.json({
+      scan: devPluginScan,
+      plugins: devGuildPlugins,
+    });
   }
 
   const db = getDb();
-  const scan = await getLatestPluginScan(db);
-  return NextResponse.json({ scan: serializeScan(scan) });
+  const view = await getGuildPluginsView(db, guildId);
+  return NextResponse.json({
+    scan: serializeScan(view.scan),
+    plugins: view.plugins,
+  });
 }

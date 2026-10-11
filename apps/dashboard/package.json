@@ -7,11 +7,12 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "next start",
     "dev": "next dev --port 3000",
-    "test": "node --import tsx --test lib/api/auth-utils.test.ts lib/api/openapi/routes.test.ts lib/moderation/role-create.test.ts lib/custom-commands/validation.test.ts lib/plugins/view.test.ts"
+    "test": "node --import tsx --test lib/api/auth-utils.test.ts lib/api/openapi/routes.test.ts lib/moderation/role-create.test.ts lib/custom-commands/validation.test.ts lib/plugins/view.test.ts lib/plugins/guild-view.test.ts"
   },
   "dependencies": {
     "@maia/db": "workspace:*",
     "@maia/discord": "workspace:*",
+    "@maia/plugins": "workspace:*",
     "@radix-ui/react-avatar": "^1.2.7",
     "@radix-ui/react-dropdown-menu": "^2.1.25",
     "@radix-ui/react-separator": "^1.1.16",

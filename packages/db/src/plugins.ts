@@ -17,6 +17,13 @@ export interface DiscoveredPluginRecord {
   lifetime: string | null;
   subscribedEvents: string[];
   errorMessage: string | null;
+  command: string[] | null;
+  environment: Array<{
+    key: string;
+    required: boolean;
+    secret: boolean;
+  }> | null;
+  invocationTimeLimitMs: number | null;
 }
 
 export interface PluginScanRecord {
@@ -36,6 +43,13 @@ export interface PersistDiscoveredPluginInput {
   lifetime?: string | null;
   subscribedEvents?: string[];
   errorMessage?: string | null;
+  command?: string[] | null;
+  environment?: Array<{
+    key: string;
+    required: boolean;
+    secret: boolean;
+  }> | null;
+  invocationTimeLimitMs?: number | null;
 }
 
 const BOT_STATE_ID = "default";
@@ -104,6 +118,13 @@ export async function persistPluginScan(
         lifetime: plugin.lifetime ?? null,
         subscribedEvents: JSON.stringify(plugin.subscribedEvents ?? []),
         errorMessage: plugin.errorMessage ?? null,
+        commandJson: plugin.command
+          ? JSON.stringify(plugin.command)
+          : null,
+        environmentJson: plugin.environment
+          ? JSON.stringify(plugin.environment)
+          : null,
+        invocationTimeLimitMs: plugin.invocationTimeLimitMs ?? null,
       })),
     );
   }
@@ -123,6 +144,9 @@ export async function persistPluginScan(
       lifetime: plugin.lifetime ?? null,
       subscribedEvents: plugin.subscribedEvents ?? [],
       errorMessage: plugin.errorMessage ?? null,
+      command: plugin.command ?? null,
+      environment: plugin.environment ?? null,
+      invocationTimeLimitMs: plugin.invocationTimeLimitMs ?? null,
     })),
   };
 }
@@ -174,8 +198,59 @@ export async function getLatestPluginScan(
       lifetime: plugin.lifetime,
       subscribedEvents: parseSubscribedEvents(plugin.subscribedEvents),
       errorMessage: plugin.errorMessage,
+      command: parseJsonStringArray(plugin.commandJson),
+      environment: parseEnvironmentJson(plugin.environmentJson),
+      invocationTimeLimitMs: plugin.invocationTimeLimitMs,
     })),
   };
+}
+
+function parseJsonStringArray(raw: string | null): string[] | null {
+  if (!raw) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) {
+      return null;
+    }
+    return parsed.filter((item): item is string => typeof item === "string");
+  } catch {
+    return null;
+  }
+}
+
+function parseEnvironmentJson(
+  raw: string | null,
+): Array<{ key: string; required: boolean; secret: boolean }> | null {
+  if (!raw) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) {
+      return null;
+    }
+    const result: Array<{ key: string; required: boolean; secret: boolean }> =
+      [];
+    for (const item of parsed) {
+      if (item === null || typeof item !== "object" || Array.isArray(item)) {
+        continue;
+      }
+      const record = item as Record<string, unknown>;
+      if (typeof record.key !== "string") {
+        continue;
+      }
+      result.push({
+        key: record.key,
+        required: record.required === true,
+        secret: record.secret === true,
+      });
+    }
+    return result;
+  } catch {
+    return null;
+  }
 }
 
 export function isPluginRefreshPending(

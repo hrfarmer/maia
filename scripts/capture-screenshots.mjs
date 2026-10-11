@@ -55,6 +55,10 @@ async function capturePluginsTab(page, outputPath) {
     timeout: 15_000,
   });
   await page.getByText("Missing maia-plugin.json").waitFor({ timeout: 15_000 });
+  await page.locator("#plugin-select").selectOption("role-sync");
+  await page.waitForSelector('[data-testid="plugin-config"]');
+  await page.getByLabel("WEBHOOK_URL *").waitFor({ timeout: 15_000 });
+  await page.getByTestId("run-plugin-now").waitFor({ timeout: 15_000 });
   await page.screenshot({
     path: outputPath,
     fullPage: true,
