@@ -60,6 +60,7 @@ async function capturePluginsTab(page, outputPath) {
   await page.getByLabel("WEBHOOK_URL *").waitFor({ timeout: 15_000 });
   await page.getByTestId("run-plugin-now").waitFor({ timeout: 15_000 });
   await page.getByTestId("plugin-cron-control").waitFor({ timeout: 15_000 });
+  await page.getByTestId("plugin-slash-control").waitFor({ timeout: 15_000 });
   await page.screenshot({
     path: outputPath,
     fullPage: true,

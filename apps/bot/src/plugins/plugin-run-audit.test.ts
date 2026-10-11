@@ -31,6 +31,22 @@ describe("plugin run audit", () => {
     assert.deepEqual(entry.detail, { trigger: "run_now" });
   });
 
+  it("records slash runs with member and command in detail", () => {
+    const entry = buildPluginRunAuditEntry({
+      guildId: "111",
+      pluginId: "slash-demo",
+      trigger: "slash",
+      memberId: "999",
+      commandName: "ping",
+      success: true,
+    });
+    assert.deepEqual(entry.detail, {
+      trigger: "slash",
+      memberId: "999",
+      command: "ping",
+    });
+  });
+
   it("marks success only when the process exits 0", () => {
     const failed = buildPluginRunAuditEntry({
       guildId: "111",

@@ -118,6 +118,49 @@ describe("guild plugin view", () => {
     assert.equal(result.values.has("WEBHOOK_URL"), false);
   });
 
+  it("shows slash control when the manifest declares commands", () => {
+    const row = mergeGuildPluginRow({
+      plugin: {
+        id: "1",
+        directoryName: "slash-demo",
+        status: "ok",
+        pluginId: "slash-demo",
+        displayName: "Slash demo",
+        lifetime: "invocation",
+        subscribedEvents: [],
+        errorMessage: null,
+        environment: [],
+      },
+      enabled: true,
+      storedValues: new Map(),
+      slashCommands: [{ name: "ping", description: "Ping", visibility: "public", defaultPermission: null, options: [] }],
+      slashCommandsEnabled: true,
+    });
+    assert.equal(row.showSlashControl, true);
+    assert.equal(row.slashCommandsEnabled, true);
+  });
+
+  it("turns slash publishing off when enablement is cleared", () => {
+    const row = mergeGuildPluginRow({
+      plugin: {
+        id: "1",
+        directoryName: "slash-demo",
+        status: "ok",
+        pluginId: "slash-demo",
+        displayName: "Slash demo",
+        lifetime: "invocation",
+        subscribedEvents: [],
+        errorMessage: null,
+        environment: [{ key: "TOKEN", required: true, secret: true }],
+      },
+      enabled: true,
+      storedValues: new Map(),
+      slashCommands: [{ name: "ping", description: "Ping", visibility: "public", defaultPermission: null, options: [] }],
+      slashCommandsEnabled: true,
+    });
+    assert.equal(row.slashCommandsEnabled, false);
+  });
+
   it("plans always-on stdin notifications without restarting the process", () => {
     assert.deepEqual(
       planAlwaysOnConfigNotifications({

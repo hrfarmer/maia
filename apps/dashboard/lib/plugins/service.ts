@@ -13,9 +13,12 @@ import {
   listGuildPluginSettingsForGuild,
   setGuildPluginCronExpression,
   setGuildPluginEnabled,
+  setGuildPluginSlashCommandsEnabled,
   upsertGuildPluginEnvValue,
   type Db,
 } from "@maia/db";
+import { syncGuildApplicationCommandsToDiscord } from "@/lib/guild-application-commands/sync";
+import type { PluginSlashCollision } from "@maia/plugins";
 import { planAlwaysOnConfigNotifications } from "./always-on-notify";
 import { applyGuildPluginValuePatch, mergeGuildPluginRow } from "./guild-view";
 
@@ -36,6 +39,28 @@ export async function getGuildPluginsView(db: Db, guildId: string) {
   const cronByPlugin = new Map(
     settings.map((row) => [row.pluginId, row.cronExpression ?? null]),
   );
+  const slashEnabledByPlugin = new Map(
+    settings.map((row) => [row.pluginId, row.slashCommandsEnabled]),
+  );
+  const slashErrorByPlugin = new Map(
+    settings.map((row) => [row.pluginId, row.slashPublishError ?? null]),
+  );
+  const slashCollisionsByPlugin = new Map<string, PluginSlashCollision[]>();
+  for (const row of settings) {
+    if (!row.slashCollisionNotes) {
+      slashCollisionsByPlugin.set(row.pluginId, []);
+      continue;
+    }
+    try {
+      const parsed = JSON.parse(row.slashCollisionNotes) as PluginSlashCollision[];
+      slashCollisionsByPlugin.set(
+        row.pluginId,
+        Array.isArray(parsed) ? parsed : [],
+      );
+    } catch {
+      slashCollisionsByPlugin.set(row.pluginId, []);
+    }
+  }
   const valuesByPlugin = new Map<string, Map<string, string>>();
   for (const row of values) {
     const map = valuesByPlugin.get(row.pluginId) ?? new Map<string, string>();
@@ -56,6 +81,7 @@ export async function getGuildPluginsView(db: Db, guildId: string) {
         errorMessage: plugin.errorMessage,
         environment: plugin.environment,
       },
+      slashCommands: plugin.slashCommands ?? [],
       enabled: plugin.pluginId
         ? (enabledByPlugin.get(plugin.pluginId) ?? false)
         : false,
@@ -65,6 +91,15 @@ export async function getGuildPluginsView(db: Db, guildId: string) {
       cronExpression: plugin.pluginId
         ? (cronByPlugin.get(plugin.pluginId) ?? null)
         : null,
+      slashCommandsEnabled: plugin.pluginId
+        ? (slashEnabledByPlugin.get(plugin.pluginId) ?? false)
+        : false,
+      slashPublishError: plugin.pluginId
+        ? (slashErrorByPlugin.get(plugin.pluginId) ?? null)
+        : null,
+      slashCollisionNotes: plugin.pluginId
+        ? (slashCollisionsByPlugin.get(plugin.pluginId) ?? [])
+        : [],
     }),
   );
 
@@ -79,6 +114,7 @@ export async function updateGuildPluginConfig(
     enabled?: boolean;
     values?: Record<string, string | null>;
     cronExpression?: string | null;
+    slashCommandsEnabled?: boolean;
   },
 ) {
   const scan = await getLatestPluginScan(db);
@@ -158,6 +194,38 @@ export async function updateGuildPluginConfig(
   }
 
   await setGuildPluginEnabled(db, guildId, pluginId, enabled);
+
+  const previousSlashEnabled = previousSettings?.slashCommandsEnabled ?? false;
+  let nextSlashEnabled = previousSlashEnabled;
+  if (input.slashCommandsEnabled !== undefined) {
+    if (input.slashCommandsEnabled && !enabled) {
+      return { error: "Enable the plugin before publishing slash commands" as const };
+    }
+    if (
+      input.slashCommandsEnabled &&
+      (discovered.slashCommands?.length ?? 0) === 0
+    ) {
+      return { error: "Plugin has no slash commands to publish" as const };
+    }
+    nextSlashEnabled = input.slashCommandsEnabled;
+    await setGuildPluginSlashCommandsEnabled(
+      db,
+      guildId,
+      pluginId,
+      nextSlashEnabled,
+    );
+  } else if (!enabled) {
+    nextSlashEnabled = false;
+    await setGuildPluginSlashCommandsEnabled(db, guildId, pluginId, false);
+  }
+
+  const shouldSyncSlash =
+    input.slashCommandsEnabled !== undefined ||
+    previousEnabled !== enabled ||
+    valuesChanged;
+  if (shouldSyncSlash) {
+    await syncGuildApplicationCommandsToDiscord(guildId);
+  }
 
   for (const changeType of planAlwaysOnConfigNotifications({
     lifetime: discovered.lifetime,

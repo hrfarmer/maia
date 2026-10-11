@@ -7,7 +7,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "next start",
     "dev": "next dev --port 3000",
-    "test": "node --experimental-test-module-mocks --import tsx --test lib/api/auth-utils.test.ts lib/api/openapi/routes.test.ts lib/api/rate-limit.test.ts lib/moderation/dashboard-routes.test.ts lib/custom-commands/validation.test.ts lib/plugins/view.test.ts lib/plugins/guild-view.test.ts lib/plugins/service.test.ts"
+    "test": "node --experimental-test-module-mocks --import tsx --test lib/api/auth-utils.test.ts lib/api/openapi/routes.test.ts lib/api/rate-limit.test.ts lib/moderation/dashboard-routes.test.ts lib/moderation/role-create.test.ts lib/custom-commands/validation.test.ts lib/guild-application-commands/sync.test.ts lib/plugins/view.test.ts lib/plugins/guild-view.test.ts lib/plugins/service.test.ts"
   },
   "dependencies": {
     "@maia/db": "workspace:*",

@@ -71,4 +71,46 @@ describe("plugin localhost API", () => {
 
     await api.close();
   });
+
+  it("accepts slash reply text for a pending reply token", async () => {
+    const registry = new PluginTokenRegistry();
+    const slashReplies = new (await import("./slash-reply-registry.js"))
+      .SlashReplyRegistry();
+    const token = registry.mintInvocationToken("guild-a", "demo");
+    let content = "";
+    slashReplies.register(token, {
+      guildId: "guild-a",
+      pluginId: "demo",
+      commandName: "ping",
+      memberId: "user-1",
+      ephemeral: true,
+      replySent: false,
+      editReply: async (text) => {
+        content = text;
+      },
+    });
+    const api = createPluginApiServer({
+      port: 0,
+      tokenRegistry: registry,
+      db: {} as Db,
+      slashReplies,
+      assertGuildApiAccess: async (provided, guildId) =>
+        registry.assertGuildAccess(provided, guildId)
+          ? { pluginId: "demo" }
+          : null,
+    });
+    await api.listen();
+    const res = await fetch(`${api.url()}/v1/guilds/guild-a/slash-reply`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ replyToken: token, text: "pong" }),
+    });
+    assert.equal(res.status, 200);
+    assert.equal(content, "pong");
+    assert.equal(slashReplies.get(token)?.replySent, true);
+    await api.close();
+  });
 });

@@ -109,6 +109,7 @@ export const discoveredPlugins = pgTable(
     environmentJson: text("environment_json"),
     invocationTimeLimitMs: integer("invocation_time_limit_ms"),
     maxConcurrentInvocations: integer("max_concurrent_invocations"),
+    slashCommandsJson: text("slash_commands_json"),
   },
   (table) => [index("discovered_plugins_scan_id_idx").on(table.scanId)],
 );
@@ -122,6 +123,11 @@ export const guildPluginSettings = pgTable(
     pluginId: text("plugin_id").notNull(),
     enabled: boolean("enabled").notNull().default(false),
     cronExpression: text("cron_expression"),
+    slashCommandsEnabled: boolean("slash_commands_enabled")
+      .notNull()
+      .default(false),
+    slashPublishError: text("slash_publish_error"),
+    slashCollisionNotes: text("slash_collision_notes"),
   },
   (table) => [primaryKey({ columns: [table.guildId, table.pluginId] })],
 );

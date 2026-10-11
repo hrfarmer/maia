@@ -39,6 +39,11 @@ interface PluginRow {
   canRunNow: boolean;
   showCronControl: boolean;
   cronExpression: string | null;
+  slashCommands: Array<{ name: string; description: string }>;
+  slashCommandsEnabled: boolean;
+  showSlashControl: boolean;
+  slashPublishError: string | null;
+  slashCollisionNotes: Array<{ name: string; reason: string }>;
 }
 
 interface ScanState {
@@ -164,6 +169,7 @@ export function PluginsPanel({ guildId }: PluginsPanelProps) {
     enabled?: boolean;
     values?: Record<string, string | null>;
     cronExpression?: string | null;
+    slashCommandsEnabled?: boolean;
   }) {
     setBusy(true);
     setStatus(null);
@@ -177,6 +183,7 @@ export function PluginsPanel({ guildId }: PluginsPanelProps) {
             enabled: input.enabled,
             values: input.values,
             cronExpression: input.cronExpression,
+            slashCommandsEnabled: input.slashCommandsEnabled,
           }),
         },
       );
@@ -360,6 +367,42 @@ export function PluginsPanel({ guildId }: PluginsPanelProps) {
                 No environment keys declared.
               </p>
             )}
+
+            {selectedPlugin.showSlashControl ? (
+              <div
+                className="space-y-2"
+                data-testid="plugin-slash-control"
+              >
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="plugin-slash"
+                    checked={selectedPlugin.slashCommandsEnabled}
+                    disabled={!selectedPlugin.enabled}
+                    onCheckedChange={(checked) =>
+                      void savePluginConfig({
+                        pluginId: selectedPlugin.pluginId!,
+                        slashCommandsEnabled: checked,
+                      })
+                    }
+                  />
+                  <Label htmlFor="plugin-slash">Slash commands</Label>
+                </div>
+                {selectedPlugin.slashPublishError ? (
+                  <p className="text-sm text-destructive">
+                    {selectedPlugin.slashPublishError}
+                  </p>
+                ) : null}
+                {selectedPlugin.slashCollisionNotes.length > 0 ? (
+                  <ul className="list-inside list-disc space-y-1 text-sm text-muted-foreground">
+                    {selectedPlugin.slashCollisionNotes.map((note) => (
+                      <li key={note.name}>
+                        /{note.name}: {note.reason}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            ) : null}
 
             {selectedPlugin.showCronControl ? (
               <div

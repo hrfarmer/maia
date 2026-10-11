@@ -30,6 +30,19 @@ export {
   type PluginLifetime,
   type PluginManifest,
 } from "./manifest.js";
+export {
+  DISCORD_INTERACTION_TIME_LIMIT_MS,
+  planPluginSlashCommandsForGuild,
+  pluginSlashCommandToDiscordPayload,
+  parsePluginSlashCommands,
+  slashRunTimeLimitMs,
+  type PluginSlashCommand,
+  type PluginSlashCollision,
+  type PluginSlashCommandOption,
+  type PluginSlashOptionType,
+  type PluginSlashVisibility,
+  type PlannedPluginSlashPublish,
+} from "./slash-commands.js";
 export { resolvePluginsDirectory } from "./paths.js";
 export {
   cronMatchesUtcMinute,
@@ -55,6 +68,12 @@ export {
   type CronInvocationStdin,
   type ManualInvocationStdin,
   type PluginRunTrigger,
+  buildSlashInvocationStdin,
+  buildAlwaysOnSlashStdin,
+  type SlashInvocationStdin,
+  type AlwaysOnSlashStdin,
+  type SlashOptionValue,
+  type SlashMemberRef,
 } from "./guild-config.js";
 export {
   spawnSupervisedPluginProcess,

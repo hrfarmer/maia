@@ -4,12 +4,15 @@ import {
   Events,
   GatewayIntentBits,
   InteractionType,
+  REST,
 } from "discord.js";
 import {
   getDb,
   getEnabledCustomCommandByName,
+  listGuildPluginEnvValues,
   recordGuildJoin,
   recordGuildLeave,
+  resolvePluginSlashCommand,
 } from "@maia/db";
 import { commandsByName } from "./commands/index.js";
 import { isUserFacingError } from "./lib/errors.js";
@@ -23,6 +26,8 @@ import { startPluginRuntimeLoop } from "./plugins/runtime-loop.js";
 import { PluginTokenRegistry } from "./plugins/token-registry.js";
 import { PluginEventInvocationConcurrency } from "./plugins/event-invocation-concurrency.js";
 import { registerMemberRoleGatewayEvents } from "./plugins/register-member-role-events.js";
+import { SlashReplyRegistry } from "./plugins/slash-reply-registry.js";
+import { executeSlashRun } from "./plugins/execute-slash-run.js";
 
 const token = process.env.DISCORD_TOKEN;
 if (!token) {
@@ -30,6 +35,18 @@ if (!token) {
 }
 
 const db = getDb();
+
+const slashContext: {
+  tokenRegistry: PluginTokenRegistry;
+  slashReplies: SlashReplyRegistry;
+  pluginApiUrl: string;
+  alwaysOnSupervisor: AlwaysOnSupervisor;
+} = {
+  tokenRegistry: new PluginTokenRegistry(),
+  slashReplies: new SlashReplyRegistry(),
+  pluginApiUrl: "",
+  alwaysOnSupervisor: null as unknown as AlwaysOnSupervisor,
+};
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
@@ -102,6 +119,37 @@ client.on(Events.InteractionCreate, async (interaction) => {
     return;
   }
 
+  const pluginSlash = await resolvePluginSlashCommand(
+    db,
+    guildId,
+    interaction.commandName,
+  );
+  if (pluginSlash) {
+    const envRows = await listGuildPluginEnvValues(
+      db,
+      guildId,
+      pluginSlash.pluginId,
+    );
+    const guildValues: Record<string, string> = {};
+    for (const row of envRows) {
+      guildValues[row.envKey] = row.value;
+    }
+    void executeSlashRun({
+      db,
+      interaction,
+      resolved: pluginSlash,
+      guildValues,
+      tokenRegistry: slashContext.tokenRegistry,
+      slashReplies: slashContext.slashReplies,
+      pluginApiUrl: slashContext.pluginApiUrl,
+      alwaysOnSupervisor: slashContext.alwaysOnSupervisor,
+      log: (line) => console.log(line),
+    }).catch((error) => {
+      console.error("Plugin slash command failed", error);
+    });
+    return;
+  }
+
   const custom = await getEnabledCustomCommandByName(
     db,
     guildId,
@@ -144,14 +192,23 @@ function resolvePluginApiPort(): number {
 }
 
 async function bootstrap() {
-  const tokenRegistry = new PluginTokenRegistry();
+  const token = process.env.DISCORD_TOKEN;
+  const clientId = process.env.DISCORD_CLIENT_ID;
+  if (!token || !clientId) {
+    throw new Error("DISCORD_TOKEN and DISCORD_CLIENT_ID are required");
+  }
+
+  const tokenRegistry = slashContext.tokenRegistry;
+  const slashReplies = slashContext.slashReplies;
   const pluginApi = createPluginApiServer({
     port: resolvePluginApiPort(),
     tokenRegistry,
     db,
+    slashReplies,
   });
   await pluginApi.listen();
   console.log(`Plugin API listening on ${pluginApi.url()}`);
+  slashContext.pluginApiUrl = pluginApi.url();
 
   const alwaysOnSupervisor = new AlwaysOnSupervisor({
     db,
@@ -159,17 +216,23 @@ async function bootstrap() {
     pluginApiUrl: pluginApi.url(),
     log: (line) => console.log(line),
   });
+  slashContext.alwaysOnSupervisor = alwaysOnSupervisor;
+
+  const rest = new REST({ version: "10" }).setToken(token);
 
   await runPluginScan(db, "startup", {
     afterScan: async () => {
       await alwaysOnSupervisor.syncFromLatestScan({ restartExisting: false });
     },
+    rest,
+    republishSlashCommands: true,
   });
 
   startPluginRefreshLoop(db, {
     afterRefreshScan: async () => {
       await alwaysOnSupervisor.syncFromLatestScan({ restartExisting: true });
     },
+    rest,
   });
 
   startPluginConfigNotifyLoop(db, alwaysOnSupervisor);

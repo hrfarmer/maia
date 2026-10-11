@@ -2,6 +2,8 @@ import {
   canEnableGuildPlugin,
   shouldDisableAfterValueChange,
   type PluginEnvironmentKey,
+  type PluginSlashCommand,
+  type PluginSlashCollision,
 } from "@maia/plugins";
 
 export interface GuildPluginEnvironmentField {
@@ -27,6 +29,11 @@ export interface GuildPluginViewRow {
   canRunNow: boolean;
   showCronControl: boolean;
   cronExpression: string | null;
+  slashCommands: PluginSlashCommand[];
+  slashCommandsEnabled: boolean;
+  showSlashControl: boolean;
+  slashPublishError: string | null;
+  slashCollisionNotes: PluginSlashCollision[];
 }
 
 export function buildGuildPluginEnvironmentFields(
@@ -69,6 +76,10 @@ export function mergeGuildPluginRow(input: {
   enabled: boolean;
   storedValues: Map<string, string>;
   cronExpression?: string | null;
+  slashCommands?: PluginSlashCommand[] | null;
+  slashCommandsEnabled?: boolean;
+  slashPublishError?: string | null;
+  slashCollisionNotes?: PluginSlashCollision[] | null;
 }): GuildPluginViewRow {
   const environmentKeys = input.plugin.environment ?? [];
   const environment = buildGuildPluginEnvironmentFields(
@@ -84,6 +95,9 @@ export function mergeGuildPluginRow(input: {
     enabled && input.plugin.lifetime === "invocation" && input.plugin.status === "ok";
   const showCronControl =
     input.plugin.lifetime === "invocation" && input.plugin.status === "ok";
+  const slashCommands = input.slashCommands ?? [];
+  const showSlashControl =
+    input.plugin.status === "ok" && slashCommands.length > 0;
 
   return {
     id: input.plugin.id,
@@ -100,6 +114,12 @@ export function mergeGuildPluginRow(input: {
     canRunNow,
     showCronControl,
     cronExpression: input.cronExpression ?? null,
+    slashCommands,
+    slashCommandsEnabled:
+      showSlashControl && enabled && (input.slashCommandsEnabled ?? false),
+    showSlashControl,
+    slashPublishError: input.slashPublishError ?? null,
+    slashCollisionNotes: input.slashCollisionNotes ?? [],
   };
 }
 

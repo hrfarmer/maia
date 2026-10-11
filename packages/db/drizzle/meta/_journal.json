@@ -64,6 +64,13 @@
       "when": 1760800000000,
       "tag": "0008_plugin_max_concurrent_invocations",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1760900000000,
+      "tag": "0009_plugin_slash_commands",
+      "breakpoints": true
     }
   ]
 }
