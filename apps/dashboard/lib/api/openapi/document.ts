@@ -63,6 +63,16 @@ function roleIdParam() {
   };
 }
 
+function channelIdParam() {
+  return {
+    name: "channelId",
+    in: "path" as const,
+    required: true,
+    description: "Discord channel ID",
+    schema: { type: "string", pattern: snowflakePattern },
+  };
+}
+
 function operationResponses(extra: Record<string, unknown> = {}) {
   return {
     ...authErrorResponses,
@@ -98,9 +108,59 @@ export function buildOpenApiDocument(serverUrl: string) {
       { name: "Roles", description: "Guild roles and member role assignments" },
       { name: "Members", description: "Kick, ban, timeout, and nickname" },
       { name: "Bans", description: "Remove guild bans" },
+      {
+        name: "Channels",
+        description: "List viewable channels and send plain-text messages",
+      },
     ],
     security: [{ bearerAuth: [] }],
     paths: {
+      [`${basePath}/channels`]: {
+        get: {
+          tags: ["Channels"],
+          summary: "List viewable guild channels",
+          description:
+            "Returns plain-text guild channels (text and announcement) that Maia can view, sorted by name.",
+          parameters: [guildIdParam()],
+          responses: operationResponses({
+            "200": {
+              description: "Viewable channels",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ChannelListResponse" },
+                },
+              },
+            },
+          }),
+        },
+      },
+      [`${basePath}/channels/{channelId}/messages`]: {
+        post: {
+          tags: ["Channels"],
+          summary: "Send a plain-text message",
+          description:
+            "Posts a message in a channel Maia can send to. Optionally replies to an existing message id.",
+          parameters: [guildIdParam(), channelIdParam()],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/MessageSendRequest" },
+              },
+            },
+          },
+          responses: operationResponses({
+            "201": {
+              description: "Message sent",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/MessageSendResponse" },
+                },
+              },
+            },
+          }),
+        },
+      },
       [`${basePath}/roles`]: {
         get: {
           tags: ["Roles"],
@@ -536,6 +596,62 @@ export function buildOpenApiDocument(serverUrl: string) {
               format: "date-time",
               description: "ISO 8601 timeout end time",
             },
+          },
+          additionalProperties: false,
+        },
+        GuildChannel: {
+          type: "object",
+          required: ["id", "name", "type"],
+          properties: {
+            id: { type: "string" },
+            name: { type: "string" },
+            type: {
+              type: "integer",
+              description: "Discord channel type (0 = text, 5 = announcement)",
+            },
+          },
+          additionalProperties: false,
+        },
+        ChannelListResponse: {
+          type: "object",
+          required: ["channels"],
+          properties: {
+            channels: {
+              type: "array",
+              items: { $ref: "#/components/schemas/GuildChannel" },
+            },
+          },
+          additionalProperties: false,
+        },
+        MessageSendRequest: {
+          type: "object",
+          required: ["content"],
+          properties: {
+            content: { type: "string", minLength: 1, maxLength: 2000 },
+            replyToMessageId: {
+              type: "string",
+              pattern: snowflakePattern,
+              description: "Optional message id to reply to",
+            },
+          },
+          additionalProperties: false,
+        },
+        MessageSendResponse: {
+          type: "object",
+          required: ["ok", "message"],
+          properties: {
+            ok: { type: "boolean", const: true },
+            message: { $ref: "#/components/schemas/SentMessage" },
+          },
+          additionalProperties: false,
+        },
+        SentMessage: {
+          type: "object",
+          required: ["id", "channelId", "content"],
+          properties: {
+            id: { type: "string" },
+            channelId: { type: "string" },
+            content: { type: "string" },
           },
           additionalProperties: false,
         },

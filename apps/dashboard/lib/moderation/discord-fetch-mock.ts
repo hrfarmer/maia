@@ -17,9 +17,21 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
-export function installDiscordFetchMock() {
+export interface DiscordFetchMockOptions {
+  channels?: Array<{ id: string; type: number; name: string }>;
+  onCreateMessage?: (body: {
+    content: string;
+    message_reference?: { message_id: string };
+  }) => { id: string; content: string };
+  everyonePermissions?: bigint;
+}
+
+export function installDiscordFetchMock(options: DiscordFetchMockOptions = {}) {
   const original = globalThis.fetch;
   let memberRoleIds = [MOCK_GUILD_ID];
+  const everyonePermissions = (
+    options.everyonePermissions ?? 0n
+  ).toString();
 
   globalThis.fetch = async (input, init) => {
     const url =
@@ -75,7 +87,7 @@ export function installDiscordFetchMock() {
           color: 0,
           position: 0,
           managed: false,
-          permissions: "0",
+          permissions: everyonePermissions,
         },
         {
           id: MOCK_ROLE_ID,
@@ -116,6 +128,21 @@ export function installDiscordFetchMock() {
         roles: memberRoleIds,
         nick: null,
       });
+    }
+    if (path === `/guilds/${MOCK_GUILD_ID}/channels`) {
+      return jsonResponse(options.channels ?? []);
+    }
+    const channelMessageMatch = path.match(/^\/channels\/([^/]+)\/messages$/);
+    if (channelMessageMatch && init?.method === "POST") {
+      const body = JSON.parse(String(init.body ?? "{}")) as {
+        content: string;
+        message_reference?: { message_id: string };
+      };
+      const created = options.onCreateMessage?.(body) ?? {
+        id: "500000000000000006",
+        content: body.content,
+      };
+      return jsonResponse(created, 201);
     }
     if (
       path ===

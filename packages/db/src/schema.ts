@@ -296,6 +296,7 @@ export type AuditAction =
   | "member.timeout"
   | "member.untimeout"
   | "member.nickname"
+  | "message.send"
   | "custom_command.create"
   | "custom_command.update"
   | "custom_command.delete";
@@ -305,4 +306,6 @@ export type AuditTargetType =
   | "role"
   | "ban"
   | "custom_command"
-  | "plugin";
+  | "plugin"
+  | "channel"
+  | "message";

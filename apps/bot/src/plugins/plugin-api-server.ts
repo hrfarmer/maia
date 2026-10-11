@@ -9,6 +9,11 @@ import {
   readBearerToken,
 } from "./plugin-api-auth.js";
 import {
+  defaultPluginMessageHandlers,
+  tryHandlePluginMessagesRequest,
+  type PluginMessageHandlers,
+} from "./plugin-api-messages.js";
+import {
   defaultPluginModerationHandlers,
   tryHandlePluginModerationRequest,
   type PluginModerationHandlers,
@@ -31,6 +36,7 @@ export interface PluginApiServerOptions {
   ) => Promise<Record<string, string>>;
   moderationHandlers?: PluginModerationHandlers;
   slashReplies?: SlashReplyRegistry;
+  messageHandlers?: PluginMessageHandlers;
 }
 
 function sendJson(
@@ -70,6 +76,9 @@ export function createPluginApiServer(options: PluginApiServerOptions) {
 
   const moderationHandlers =
     options.moderationHandlers ?? defaultPluginModerationHandlers();
+
+  const messageHandlers =
+    options.messageHandlers ?? defaultPluginMessageHandlers();
 
   const server = http.createServer((req, res) => {
     void (async () => {
@@ -159,6 +168,18 @@ export function createPluginApiServer(options: PluginApiServerOptions) {
         moderationHandlers,
       );
       if (handled) {
+        return;
+      }
+
+      const messageHandled = await tryHandlePluginMessagesRequest(
+        req,
+        res,
+        url,
+        guildId,
+        actor,
+        messageHandlers,
+      );
+      if (messageHandled) {
         return;
       }
 
