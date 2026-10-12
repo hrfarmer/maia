@@ -14,6 +14,7 @@ import {
 
 function createMemoryRepository(): SpacelabRosterRepository & {
   failuresCleared: number;
+  lastAppliedSnapshots: number;
 } {
   const state = {
     parsed: null as {
