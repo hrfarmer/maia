@@ -3,6 +3,8 @@ import { describe, it } from "node:test";
 import { MAX_RECONCILE_MEMBER_ATTEMPTS } from "./reconcile-pass.js";
 import {
   SYNTHETIC_LAB_ROSTER_EXPORT,
+  SYNTHETIC_LAB_ROSTER_EXPORT_CSV,
+  SYNTHETIC_LAB_ROSTER_EXPORT_CSV_SPACE_SEPARATED,
   SYNTHETIC_LAB_ROSTER_EXPORT_INVALID_ROW,
 } from "./fixture.js";
 import { runSpacelabGuildCycle } from "./run-spacelab-guild-cycle.js";
@@ -335,6 +337,77 @@ describe("runSpacelabGuildCycle", () => {
     assert.equal(ingestCount.value, 1);
     assert.equal(cycle.lastParsedMessageId, "newer");
     assert.deepEqual(graph.archived.sort(), ["newer", "older"]);
+  });
+
+  it("records roster_no_rows and does not ingest when the export has a header but no data rows", async () => {
+    const graph = new FakeGraphMailbox();
+    const headerOnly = SYNTHETIC_LAB_ROSTER_EXPORT_CSV.split("\n")[0]!;
+    graph.inbox.push(
+      rosterMessage("header-only", "2026-01-02T00:00:00Z", headerOnly),
+    );
+    const cycle: SpacelabCycleState = {
+      lastCycleAt: null,
+      lastError: null,
+      lastParsedMessageId: null,
+      pendingArchiveMessageIds: [],
+      adaptLinksRevision: 0,
+      lastProcessedAdaptLinksRevision: 0,
+    };
+    const ingestCount = { value: 0 };
+    const result = await runSpacelabGuildCycle({
+      config: {
+        pluginUrl: "http://127.0.0.1:9",
+        pluginToken: "token",
+        guildId: "guild-1",
+        fetchImpl: createMaiaFetch({
+          cycle,
+          rosterColumn: "Subteam",
+          ingestCount,
+        }),
+      },
+      graph,
+    });
+    assert.equal(result.skippedReason, "unparseable_roster");
+    assert.equal(ingestCount.value, 0);
+    assert.equal(cycle.lastError, "roster_no_rows");
+    assert.deepEqual(graph.inbox.map((message) => message.id), ["header-only"]);
+  });
+
+  it("re-processes an inbox roster when lastParsedMessageId matches but saved roster rows are empty", async () => {
+    const graph = new FakeGraphMailbox();
+    graph.inbox.push(
+      rosterMessage(
+        "seen-msg",
+        "2026-01-02T00:00:00Z",
+        SYNTHETIC_LAB_ROSTER_EXPORT_CSV_SPACE_SEPARATED,
+      ),
+    );
+    const cycle: SpacelabCycleState = {
+      lastCycleAt: null,
+      lastError: null,
+      lastParsedMessageId: "seen-msg",
+      pendingArchiveMessageIds: [],
+      adaptLinksRevision: 0,
+      lastProcessedAdaptLinksRevision: 0,
+    };
+    const ingestCount = { value: 0 };
+    await runSpacelabGuildCycle({
+      config: {
+        pluginUrl: "http://127.0.0.1:9",
+        pluginToken: "token",
+        guildId: "guild-1",
+        fetchImpl: createMaiaFetch({
+          cycle,
+          rosterColumn: "Subteam",
+          ingestCount,
+          links: { Alpha: "role-alpha" },
+          rosterRows: [],
+        }),
+      },
+      graph,
+    });
+    assert.equal(ingestCount.value, 1);
+    assert.equal(cycle.lastParsedMessageId, "seen-msg");
   });
 
   it("keeps an unparseable roster in the inbox without changing saved roster", async () => {
