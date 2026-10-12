@@ -112,8 +112,17 @@ function productionSubteamField(recordIndex: number): string {
   return csvField(`{"Value":"${primary}"}`);
 }
 
+export interface ProductionShapeLabRosterExportOptions {
+  emptyDiscordHandleAt?: number[];
+  emptyGitHubHandleAt?: number[];
+}
+
 /** One-line export: 42 columns, 36 records, space-separated rows, empty last field on most rows. */
-export function buildProductionShapeLabRosterExport(): string {
+export function buildProductionShapeLabRosterExport(
+  options: ProductionShapeLabRosterExportOptions = {},
+): string {
+  const emptyDiscord = new Set(options.emptyDiscordHandleAt ?? []);
+  const emptyGitHub = new Set(options.emptyGitHubHandleAt ?? []);
   const header = PRODUCTION_SHAPE_LAB_ROSTER_HEADERS.join(",");
   const records: string[] = [];
   for (let index = 0; index < 36; index += 1) {
@@ -124,9 +133,9 @@ export function buildProductionShapeLabRosterExport(): string {
     fields[2] = String(1000 + index);
     fields[3] = index === 0 ? "Professor Example" : `Member ${index}`;
     fields[4] = csvField(`Member Name ${index}`);
-    fields[5] = `labuser${index}`;
+    fields[5] = emptyGitHub.has(index) ? "" : `labuser${index}`;
     fields[6] = `labuser${index}@example.edu`;
-    fields[7] = `synthetic.user.${index}`;
+    fields[7] = emptyDiscord.has(index) ? "" : `synthetic.user.${index}`;
     fields[8] = productionStatusField(active);
     fields[9] = productionSubteamField(index);
     fields[10] = String((index % 7) + 1);
@@ -169,3 +178,9 @@ export function buildProductionShapeLabRosterExport(): string {
 
 export const SYNTHETIC_LAB_ROSTER_EXPORT_PRODUCTION_SHAPE =
   buildProductionShapeLabRosterExport();
+
+export const SYNTHETIC_LAB_ROSTER_EXPORT_PRODUCTION_SHAPE_WITH_SKIPPED_ROWS =
+  buildProductionShapeLabRosterExport({
+    emptyDiscordHandleAt: [17],
+    emptyGitHubHandleAt: [2, 5, 8, 11, 14, 20],
+  });

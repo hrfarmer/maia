@@ -8,6 +8,8 @@ import {
   SYNTHETIC_LAB_ROSTER_EXPORT_CSV_SPACE_SEPARATED_MULTIWORD_TITLE,
   SYNTHETIC_LAB_ROSTER_EXPORT_INVALID_ROW,
   SYNTHETIC_LAB_ROSTER_EXPORT_PRODUCTION_SHAPE,
+  SYNTHETIC_LAB_ROSTER_EXPORT_PRODUCTION_SHAPE_WITH_SKIPPED_ROWS,
+  buildProductionShapeLabRosterExport,
   PRODUCTION_SHAPE_LAB_ROSTER_HEADERS,
 } from "./fixture.js";
 import {
@@ -229,6 +231,58 @@ describe("parseLabRosterMessage", () => {
     const row4 = parsed.rows.find((row) => row.discordHandle === "synthetic.user.4");
     assert.ok(row4);
     assert.equal(row4.status, "Inactive");
+  });
+
+  it("skips records with empty DiscordHandle or Status without rejecting the roster", () => {
+    const lines: string[] = [];
+    const originalLog = console.log;
+    console.log = (line: string) => {
+      lines.push(line);
+    };
+    let parsed: ReturnType<typeof parseLabRosterMessage>;
+    try {
+      parsed = parseLabRosterMessage(
+        SYNTHETIC_LAB_ROSTER_EXPORT_PRODUCTION_SHAPE_WITH_SKIPPED_ROWS,
+        "Subteam",
+      );
+    } finally {
+      console.log = originalLog;
+    }
+    assert.equal(parsed.ok, true);
+    if (!parsed.ok) {
+      return;
+    }
+    assert.equal(parsed.rows.length, 35);
+    assert.equal(
+      parsed.rows.some((row) => row.discordHandle === "synthetic.user.17"),
+      false,
+    );
+    assert.ok(parsed.rows.some((row) => row.discordHandle === "synthetic.user.2"));
+    const structural = lines.find((line) => line.includes("spacelabRosterParse"));
+    assert.ok(structural);
+    const payload = JSON.parse(structural!) as {
+      spacelabRosterParse: {
+        skipped_missing_discord_handle: number;
+        rejectedRowReasons: { missing_github_handle: number };
+      };
+    };
+    assert.equal(payload.spacelabRosterParse.skipped_missing_discord_handle, 1);
+    assert.equal(
+      payload.spacelabRosterParse.rejectedRowReasons.missing_github_handle,
+      6,
+    );
+  });
+
+  it("fails with roster_no_rows when every record is skipped", () => {
+    const body = buildProductionShapeLabRosterExport({
+      emptyDiscordHandleAt: Array.from({ length: 36 }, (_, index) => index),
+    });
+    const parsed = parseLabRosterMessage(body, "Subteam");
+    assert.equal(parsed.ok, false);
+    if (parsed.ok) {
+      return;
+    }
+    assert.equal(parsed.reason, "roster_no_rows");
   });
 
   it("reports non-PII reasons when a message is not a roster export", () => {
