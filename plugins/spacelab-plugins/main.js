@@ -3,6 +3,7 @@ import {
   createGraphMailboxClient,
   resolveGraphBaseUrl,
   runSpacelabGuildCycle,
+  runSpacelabGuildForceSync,
   startSpacelabMinutePoll,
 } from "./reconcile.mjs";
 
@@ -86,8 +87,33 @@ rl.on("line", (line) => {
     if (
       change !== "enabled" &&
       change !== "values_saved" &&
-      change !== "adapt_roles_saved"
+      change !== "adapt_roles_saved" &&
+      change !== "force_sync_requested"
     ) {
+      return;
+    }
+    if (change === "force_sync_requested") {
+      try {
+        const result = await runSpacelabGuildForceSync({
+          pluginUrl,
+          pluginToken,
+          guildId: message.guildId,
+          fetchImpl: fetch,
+        });
+        process.stdout.write(
+          `${JSON.stringify({ guildId: message.guildId, forceSync: result })}\n`,
+        );
+      } catch (error) {
+        process.stdout.write(
+          `${JSON.stringify({
+            guildId: message.guildId,
+            forceSync: {
+              ok: false,
+              error: error instanceof Error ? error.message : "force_sync_failed",
+            },
+          })}\n`,
+        );
+      }
       return;
     }
     if (change === "adapt_roles_saved") {

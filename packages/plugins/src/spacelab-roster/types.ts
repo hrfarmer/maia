@@ -31,5 +31,5 @@ export interface SpacelabReconcileFailure {
 }
 
 export interface SpacelabReconcilePassMode {
-  kind: "full" | "retry-failures-only";
+  kind: "full" | "retry-failures-only" | "force-sync";
 }

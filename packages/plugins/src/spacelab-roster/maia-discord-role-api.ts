@@ -120,7 +120,9 @@ export async function fetchSpacelabReconcileState(
 
 export async function saveSpacelabReconcileState(
   config: MaiaPluginClientConfig,
-  body: SpacelabReconcileStateResponse,
+  body: SpacelabReconcileStateResponse & {
+    forceSyncCompleted?: { ok: boolean; error?: string | null };
+  },
 ) {
   const fetchImpl = config.fetchImpl ?? fetch;
   const response = await fetchImpl(

@@ -1,7 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -24,12 +35,21 @@ interface GuildRoleOption {
   name: string;
 }
 
+interface ForceSyncView {
+  pending: boolean;
+  requestedAt: string | null;
+  completedAt: string | null;
+  ok: boolean | null;
+  error: string | null;
+}
+
 interface AdaptRolesView {
   adaptRoleRows: AdaptRoleRow[];
   guildRoles: GuildRoleOption[];
   parsedAt: string | null;
   generalMemberRoleId: string | null;
   generalMemberRoleMissing: boolean;
+  forceSync: ForceSyncView;
 }
 
 interface SpacelabRosterAdaptRolesCardProps {
@@ -44,6 +64,7 @@ export function SpacelabRosterAdaptRolesCard({
   const [view, setView] = useState<AdaptRolesView | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [forceSyncOpen, setForceSyncOpen] = useState(false);
 
   const loadView = useCallback(async () => {
     const res = await fetch(
@@ -92,6 +113,86 @@ export function SpacelabRosterAdaptRolesCard({
   async function saveGeneralMemberRole(discordRoleId: string | null) {
     await patchSettings({ generalMemberRoleId: discordRoleId });
   }
+
+  async function requestForceSync() {
+    setBusy(true);
+    setStatus(null);
+    try {
+      const res = await fetch(
+        `/api/servers/${guildId}/plugins/spacelab-roster/force-sync`,
+        { method: "POST" },
+      );
+      if (!res.ok) {
+        setStatus("Save failed");
+        return;
+      }
+      const data = (await res.json()) as AdaptRolesView;
+      setView(data);
+    } finally {
+      setBusy(false);
+      setForceSyncOpen(false);
+    }
+  }
+
+  function forceSyncStatusLine(forceSync: ForceSyncView) {
+    if (forceSync.pending) {
+      return forceSync.requestedAt
+        ? `Pending since ${new Date(forceSync.requestedAt).toLocaleString()}`
+        : "Pending";
+    }
+    if (!forceSync.completedAt) {
+      return null;
+    }
+    const when = new Date(forceSync.completedAt).toLocaleString();
+    if (forceSync.ok === true) {
+      return `Last force sync: ${when} (ok)`;
+    }
+    if (forceSync.ok === false) {
+      return `Last force sync: ${when} (${forceSync.error ?? "failed"})`;
+    }
+    return `Last force sync: ${when}`;
+  }
+
+  const forceSyncControls = view ? (
+    <div
+      className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+      data-testid="spacelab-force-sync"
+    >
+      <p className="text-xs text-muted-foreground">
+        {forceSyncStatusLine(view.forceSync) ?? "No force sync yet"}
+      </p>
+      <AlertDialog open={forceSyncOpen} onOpenChange={setForceSyncOpen}>
+        <AlertDialogTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full rounded-sm sm:w-auto"
+            disabled={busy || view.forceSync.pending}
+            data-testid="spacelab-force-sync-button"
+          >
+            Force sync
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent className="rounded-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Force sync</AlertDialogTitle>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={busy}
+              onClick={(event) => {
+                event.preventDefault();
+                void requestForceSync();
+              }}
+            >
+              Force sync
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  ) : null;
 
   if (!view) {
     return (
@@ -159,6 +260,7 @@ export function SpacelabRosterAdaptRolesCard({
           </p>
         ) : null}
         {generalMemberRoleField}
+        {forceSyncControls}
         <p className="text-sm text-muted-foreground">No roster values yet.</p>
       </div>
     );
@@ -182,6 +284,7 @@ export function SpacelabRosterAdaptRolesCard({
       ) : null}
 
       {generalMemberRoleField}
+      {forceSyncControls}
 
       <ul className="space-y-3">
         {view.adaptRoleRows.map((row) => (

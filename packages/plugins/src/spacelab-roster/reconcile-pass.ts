@@ -61,7 +61,7 @@ export function buildManagedRoleIds(
   return managed;
 }
 
-export function rowQualifiesForGeneralAdaptMemberRole(
+export function rowQualifiesForAdaptReconcile(
   row: SavedRosterRow,
   links: Map<string, string>,
   guildRoleIds: Set<string>,
@@ -73,6 +73,42 @@ export function rowQualifiesForGeneralAdaptMemberRole(
     desiredLinkedRoleIdsForValues(row.adaptRoleValues, links, guildRoleIds)
       .size > 0
   );
+}
+
+export function rowQualifiesForGeneralAdaptMemberRole(
+  row: SavedRosterRow,
+  links: Map<string, string>,
+  guildRoleIds: Set<string>,
+): boolean {
+  return rowQualifiesForAdaptReconcile(row, links, guildRoleIds);
+}
+
+export function computeRoleChangesForMember(input: {
+  currentRoleIds: string[];
+  desiredRoleIds: Set<string>;
+  removableRoleIds: Set<string>;
+  forceAdaptValid: boolean;
+  adaptLinkedRoleIds: Set<string>;
+}): { toAdd: string[]; toRemove: string[] } {
+  const desired = input.desiredRoleIds;
+  if (input.forceAdaptValid) {
+    const toAdd = [...desired].filter(
+      (roleId) => !input.currentRoleIds.includes(roleId),
+    );
+    const toRemove = input.currentRoleIds.filter(
+      (roleId) =>
+        input.adaptLinkedRoleIds.has(roleId) && !desired.has(roleId),
+    );
+    return { toAdd, toRemove };
+  }
+  const maiaOwnedOnMember = input.currentRoleIds.filter((roleId) =>
+    input.removableRoleIds.has(roleId),
+  );
+  const toAdd = [...desired].filter(
+    (roleId) => !input.currentRoleIds.includes(roleId),
+  );
+  const toRemove = maiaOwnedOnMember.filter((roleId) => !desired.has(roleId));
+  return { toAdd, toRemove };
 }
 
 export function desiredRoleIdsForMember(
@@ -391,6 +427,12 @@ export async function runReconcilePass(
   const previousAppliedLinkRoleIds = roleIdsFromLinkMap(
     input.previousAppliedLinks,
   );
+  const adaptLinkedRoleIds = buildManagedRoleIds(
+    input.links,
+    guildRoleIds,
+    input.generalMemberRoleId,
+  );
+  const forceSync = input.mode.kind === "force-sync";
 
   let memberLookup = new Map<
     string,
@@ -471,16 +513,22 @@ export async function runReconcilePass(
         previousAppliedLinkRoleIds,
         input.previousAppliedGeneralMemberRoleId,
       );
-      const maiaOwnedOnMember = currentRoleIds.filter((roleId) =>
-        removableRoleIds.has(roleId),
-      );
       const desired = item.desiredLinkedRoleIds;
-      const toAdd = [...desired].filter(
-        (roleId) => !currentRoleIds.includes(roleId),
-      );
-      const toRemove = maiaOwnedOnMember.filter(
-        (roleId) => !desired.has(roleId),
-      );
+      const forceAdaptValid =
+        forceSync &&
+        item.rosterRow !== undefined &&
+        rowQualifiesForAdaptReconcile(
+          item.rosterRow,
+          input.links,
+          guildRoleIds,
+        );
+      const { toAdd, toRemove } = computeRoleChangesForMember({
+        currentRoleIds,
+        desiredRoleIds: desired,
+        removableRoleIds,
+        forceAdaptValid,
+        adaptLinkedRoleIds,
+      });
 
       for (const roleId of toAdd) {
         await api.addRole(userId, roleId);

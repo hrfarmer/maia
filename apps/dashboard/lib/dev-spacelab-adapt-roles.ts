@@ -41,6 +41,13 @@ export function getDevSpacelabAdaptRolesView(): SpacelabAdaptRolesView {
       devState.generalMemberRoleId &&
         !guildRoleIds.has(devState.generalMemberRoleId),
     ),
+    forceSync: {
+      pending: false,
+      requestedAt: null,
+      completedAt: null,
+      ok: null,
+      error: null,
+    },
   };
 }
 

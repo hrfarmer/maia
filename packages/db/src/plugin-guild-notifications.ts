@@ -6,7 +6,8 @@ export type PluginGuildConfigChangeType =
   | "enabled"
   | "disabled"
   | "values_saved"
-  | "adapt_roles_saved";
+  | "adapt_roles_saved"
+  | "force_sync_requested";
 
 export async function enqueuePluginGuildConfigNotification(
   db: Db,

@@ -223,6 +223,15 @@ export const spacelabGuildAdaptSettings = pgTable(
     lastAppliedGeneralMemberRoleId: text(
       "last_applied_general_member_role_id",
     ),
+    forceSyncPending: boolean("force_sync_pending").notNull().default(false),
+    lastForceSyncRequestedAt: timestamp("last_force_sync_requested_at", {
+      withTimezone: true,
+    }),
+    lastForceSyncCompletedAt: timestamp("last_force_sync_completed_at", {
+      withTimezone: true,
+    }),
+    lastForceSyncOk: boolean("last_force_sync_ok"),
+    lastForceSyncError: text("last_force_sync_error"),
   },
 );
 

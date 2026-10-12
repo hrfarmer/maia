@@ -113,6 +113,82 @@ export async function setSpacelabLastAppliedAdaptLinks(
     });
 }
 
+export interface SpacelabForceSyncState {
+  forceSyncPending: boolean;
+  lastForceSyncRequestedAt: Date | null;
+  lastForceSyncCompletedAt: Date | null;
+  lastForceSyncOk: boolean | null;
+  lastForceSyncError: string | null;
+}
+
+export async function getSpacelabForceSyncState(
+  db: Db,
+  guildId: string,
+): Promise<SpacelabForceSyncState> {
+  const row = await db.query.spacelabGuildAdaptSettings.findFirst({
+    where: eq(spacelabGuildAdaptSettings.guildId, guildId),
+  });
+  if (!row) {
+    return {
+      forceSyncPending: false,
+      lastForceSyncRequestedAt: null,
+      lastForceSyncCompletedAt: null,
+      lastForceSyncOk: null,
+      lastForceSyncError: null,
+    };
+  }
+  return {
+    forceSyncPending: row.forceSyncPending,
+    lastForceSyncRequestedAt: row.lastForceSyncRequestedAt ?? null,
+    lastForceSyncCompletedAt: row.lastForceSyncCompletedAt ?? null,
+    lastForceSyncOk: row.lastForceSyncOk ?? null,
+    lastForceSyncError: row.lastForceSyncError ?? null,
+  };
+}
+
+export async function queueSpacelabForceSync(db: Db, guildId: string) {
+  const now = new Date();
+  await db
+    .insert(spacelabGuildAdaptSettings)
+    .values({
+      guildId,
+      forceSyncPending: true,
+      lastForceSyncRequestedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: spacelabGuildAdaptSettings.guildId,
+      set: {
+        forceSyncPending: true,
+        lastForceSyncRequestedAt: now,
+      },
+    });
+}
+
+export async function completeSpacelabForceSync(
+  db: Db,
+  guildId: string,
+  input: { ok: boolean; error?: string | null },
+) {
+  await db
+    .insert(spacelabGuildAdaptSettings)
+    .values({
+      guildId,
+      forceSyncPending: false,
+      lastForceSyncCompletedAt: new Date(),
+      lastForceSyncOk: input.ok,
+      lastForceSyncError: input.error ?? null,
+    })
+    .onConflictDoUpdate({
+      target: spacelabGuildAdaptSettings.guildId,
+      set: {
+        forceSyncPending: false,
+        lastForceSyncCompletedAt: new Date(),
+        lastForceSyncOk: input.ok,
+        lastForceSyncError: input.error ?? null,
+      },
+    });
+}
+
 export async function snapshotSpacelabCurrentAdaptLinksAsLastApplied(
   db: Db,
   guildId: string,

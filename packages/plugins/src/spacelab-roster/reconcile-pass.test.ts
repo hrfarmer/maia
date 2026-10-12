@@ -7,6 +7,8 @@ import type {
 } from "./types.js";
 import {
   buildManagedLinkedRoleIds,
+  buildManagedRoleIds,
+  computeRoleChangesForMember,
   desiredLinkedRoleIdsForValues,
   exactUsernameMatches,
   runReconcilePass,
@@ -100,6 +102,25 @@ describe("reconcile pass helpers", () => {
       "user.a",
     );
     assert.deepEqual(matches, [{ id: "1", username: "User.A" }]);
+  });
+
+  it("removes any linked ADAPT role not desired in force sync mode", () => {
+    const adaptLinked = buildManagedRoleIds(
+      links({ Alpha: "role-alpha", Beta: "role-beta" }),
+      new Set(["role-alpha", "role-beta"]),
+      null,
+    );
+    const changes = computeRoleChangesForMember({
+      currentRoleIds: ["role-beta", "role-manual"],
+      desiredRoleIds: new Set(["role-alpha"]),
+      removableRoleIds: new Set(),
+      forceAdaptValid: true,
+      adaptLinkedRoleIds: adaptLinked,
+    });
+    assert.deepEqual(changes, {
+      toAdd: ["role-alpha"],
+      toRemove: ["role-beta"],
+    });
   });
 
   it("collects managed linked role ids that still exist in the guild", () => {
@@ -655,6 +676,34 @@ describe("runReconcilePass", () => {
     assert.deepEqual(calls, [
       { op: "add", userId: "uid-a", roleId: "role-beta" },
       { op: "remove", userId: "uid-a", roleId: "role-alpha" },
+    ]);
+  });
+
+  it("force sync strips an extra linked role and adds missing roles", async () => {
+    const calls: Array<{ op: string; userId: string; roleId?: string }> = [];
+    const api = fakeApi({
+      calls,
+      roles: new Map([["uid-a", ["role-beta", "role-manual"]]]),
+    });
+    await runReconcilePass(
+      input({
+        mode: { kind: "force-sync" },
+        links: links({ Alpha: "role-alpha", Beta: "role-beta" }),
+        rows: [
+          {
+            discordHandle: "user.a",
+            status: "Active",
+            adaptRoleValues: ["Alpha"],
+            discordUserId: "uid-a",
+          },
+        ],
+        rememberedMembers: [{ discordUserId: "uid-a", discordHandle: "user.a" }],
+      }),
+      api,
+    );
+    assert.deepEqual(calls, [
+      { op: "add", userId: "uid-a", roleId: "role-alpha" },
+      { op: "remove", userId: "uid-a", roleId: "role-beta" },
     ]);
   });
 
