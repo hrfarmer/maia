@@ -7,9 +7,14 @@ import {
   SYNTHETIC_LAB_ROSTER_EXPORT_CSV_SPACE_SEPARATED,
   SYNTHETIC_LAB_ROSTER_EXPORT_CSV_SPACE_SEPARATED_MULTIWORD_TITLE,
   SYNTHETIC_LAB_ROSTER_EXPORT_INVALID_ROW,
+  SYNTHETIC_LAB_ROSTER_EXPORT_PRODUCTION_SHAPE,
+  SYNTHETIC_LAB_ROSTER_EXPORT_PRODUCTION_SHAPE_WITH_SKIPPED_ROWS,
+  buildProductionShapeLabRosterExport,
+  PRODUCTION_SHAPE_LAB_ROSTER_HEADERS,
 } from "./fixture.js";
 import {
   isLabRosterExportMessage,
+  labRosterExportHeaders,
   labRosterNotRecognizedReason,
   normalizeLabRosterMessageBody,
   parseLabRosterMessage,
@@ -183,6 +188,96 @@ describe("parseLabRosterMessage", () => {
   it("treats a valid header with zero data rows as a parse failure", () => {
     const headerOnly = SYNTHETIC_LAB_ROSTER_EXPORT_CSV.split("\n")[0]!;
     const parsed = parseLabRosterMessage(headerOnly, "Subteam");
+    assert.equal(parsed.ok, false);
+    if (parsed.ok) {
+      return;
+    }
+    assert.equal(parsed.reason, "roster_no_rows");
+  });
+
+  it("parses one-line production-shaped exports when the last column is often empty", () => {
+    assert.deepEqual(
+      labRosterExportHeaders(SYNTHETIC_LAB_ROSTER_EXPORT_PRODUCTION_SHAPE),
+      [...PRODUCTION_SHAPE_LAB_ROSTER_HEADERS],
+    );
+    assert.equal(
+      isLabRosterExportMessage(
+        SYNTHETIC_LAB_ROSTER_EXPORT_PRODUCTION_SHAPE,
+        "Subteam",
+      ),
+      true,
+    );
+    const parsed = parseLabRosterMessage(
+      SYNTHETIC_LAB_ROSTER_EXPORT_PRODUCTION_SHAPE,
+      "Subteam",
+    );
+    assert.equal(parsed.ok, true);
+    if (!parsed.ok) {
+      return;
+    }
+    assert.equal(parsed.rows.length, 36);
+    assert.equal(PRODUCTION_SHAPE_LAB_ROSTER_HEADERS.length, 42);
+    assert.equal(
+      PRODUCTION_SHAPE_LAB_ROSTER_HEADERS.at(-1),
+      "Exp_x002e_GraduationSemester#Id",
+    );
+    const row0 = parsed.rows.find((row) => row.discordHandle === "synthetic.user.0");
+    assert.ok(row0);
+    assert.equal(row0.status, "Active");
+    assert.deepEqual(row0.adaptRoleValues.sort(), ["TeamA", "TeamB"]);
+    const row11 = parsed.rows.find((row) => row.discordHandle === "synthetic.user.11");
+    assert.ok(row11);
+    assert.deepEqual(row11.adaptRoleValues.sort(), ["TeamL", "TeamM"]);
+    const row4 = parsed.rows.find((row) => row.discordHandle === "synthetic.user.4");
+    assert.ok(row4);
+    assert.equal(row4.status, "Inactive");
+  });
+
+  it("skips records with empty DiscordHandle or Status without rejecting the roster", () => {
+    const lines: string[] = [];
+    const originalLog = console.log;
+    console.log = (line: string) => {
+      lines.push(line);
+    };
+    let parsed: ReturnType<typeof parseLabRosterMessage>;
+    try {
+      parsed = parseLabRosterMessage(
+        SYNTHETIC_LAB_ROSTER_EXPORT_PRODUCTION_SHAPE_WITH_SKIPPED_ROWS,
+        "Subteam",
+      );
+    } finally {
+      console.log = originalLog;
+    }
+    assert.equal(parsed.ok, true);
+    if (!parsed.ok) {
+      return;
+    }
+    assert.equal(parsed.rows.length, 35);
+    assert.equal(
+      parsed.rows.some((row) => row.discordHandle === "synthetic.user.17"),
+      false,
+    );
+    assert.ok(parsed.rows.some((row) => row.discordHandle === "synthetic.user.2"));
+    const structural = lines.find((line) => line.includes("spacelabRosterParse"));
+    assert.ok(structural);
+    const payload = JSON.parse(structural!) as {
+      spacelabRosterParse: {
+        skipped_missing_discord_handle: number;
+        rejectedRowReasons: { missing_github_handle: number };
+      };
+    };
+    assert.equal(payload.spacelabRosterParse.skipped_missing_discord_handle, 1);
+    assert.equal(
+      payload.spacelabRosterParse.rejectedRowReasons.missing_github_handle,
+      6,
+    );
+  });
+
+  it("fails with roster_no_rows when every record is skipped", () => {
+    const body = buildProductionShapeLabRosterExport({
+      emptyDiscordHandleAt: Array.from({ length: 36 }, (_, index) => index),
+    });
+    const parsed = parseLabRosterMessage(body, "Subteam");
     assert.equal(parsed.ok, false);
     if (parsed.ok) {
       return;

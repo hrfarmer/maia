@@ -105,16 +105,26 @@ function readCommaRecord(
     if (fieldCount !== "header" && fields.length >= fieldCount) {
       break;
     }
-    pos = skipWhitespace(text, pos);
+    const isLastFieldInRecord =
+      fieldCount !== "header" && fields.length === fieldCount - 1;
+    if (!isLastFieldInRecord) {
+      pos = skipWhitespace(text, pos);
+    }
     if (pos >= text.length) {
+      if (isLastFieldInRecord) {
+        fields.push("");
+      }
       break;
     }
-    const { field, nextPos } = readCommaSeparatedField(text, pos, {
-      lastFieldInRecord:
-        fieldCount !== "header" && fields.length === fieldCount - 1,
-    });
-    fields.push(field.trim());
-    pos = nextPos;
+    if (isLastFieldInRecord && isWhitespace(text[pos]!)) {
+      fields.push("");
+    } else {
+      const { field, nextPos } = readCommaSeparatedField(text, pos, {
+        lastFieldInRecord: isLastFieldInRecord,
+      });
+      fields.push(field.trim());
+      pos = nextPos;
+    }
     if (pos >= text.length) {
       break;
     }
@@ -363,6 +373,21 @@ export function isLabRosterExportMessage(
   return labRosterNotRecognizedReason(message, rosterColumn) === null;
 }
 
+function parseStatusCell(cell: string): string {
+  const trimmed = cell.trim();
+  if (trimmed === "") {
+    return "";
+  }
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+    const values = parseLookupCellValues(trimmed);
+    if (values.length !== 1) {
+      throw new RosterParseError("Invalid status lookup cell");
+    }
+    return values[0]!;
+  }
+  return trimmed;
+}
+
 function parseLookupCellValues(cell: string): string[] {
   const trimmed = cell.trim();
   if (trimmed === "") {
@@ -437,9 +462,9 @@ function distinctAdaptValues(rows: ParsedRosterRow[]): string[] {
 export interface LabRosterParseStats {
   headerColumnCount: number;
   recordCount: number;
+  skipped_missing_discord_handle: number;
+  skipped_missing_status: number;
   rejectedRowReasons: {
-    missing_discord_handle: number;
-    missing_status: number;
     missing_title: number;
     missing_member: number;
     missing_github_handle: number;
@@ -449,12 +474,23 @@ export interface LabRosterParseStats {
 
 function emptyRejectedRowReasons(): LabRosterParseStats["rejectedRowReasons"] {
   return {
-    missing_discord_handle: 0,
-    missing_status: 0,
     missing_title: 0,
     missing_member: 0,
     missing_github_handle: 0,
     missing_txst_email: 0,
+  };
+}
+
+function emptyParseStats(
+  headerColumnCount: number,
+  recordCount: number,
+): LabRosterParseStats {
+  return {
+    headerColumnCount,
+    recordCount,
+    skipped_missing_discord_handle: 0,
+    skipped_missing_status: 0,
+    rejectedRowReasons: emptyRejectedRowReasons(),
   };
 }
 
@@ -464,6 +500,8 @@ export function logLabRosterParseStructure(stats: LabRosterParseStats) {
       spacelabRosterParse: {
         headerColumnCount: stats.headerColumnCount,
         recordCount: stats.recordCount,
+        skipped_missing_discord_handle: stats.skipped_missing_discord_handle,
+        skipped_missing_status: stats.skipped_missing_status,
         rejectedRowReasons: stats.rejectedRowReasons,
       },
     }),
@@ -519,12 +557,7 @@ export function parseLabRosterMessage(
     return { ok: false, reason: "not_recognized" };
   }
 
-  const rejectedRowReasons = emptyRejectedRowReasons();
-  const stats: LabRosterParseStats = {
-    headerColumnCount: headers.length,
-    recordCount: table.records.length,
-    rejectedRowReasons,
-  };
+  const stats = emptyParseStats(headers.length, table.records.length);
 
   if (table.records.length === 0) {
     logLabRosterParseStructure(stats);
@@ -535,18 +568,16 @@ export function parseLabRosterMessage(
   try {
     for (const cells of table.records) {
       const discordHandle = (cells[handleIndex] ?? "").trim();
-      const status = (cells[statusIndex] ?? "").trim();
       if (discordHandle === "") {
-        rejectedRowReasons.missing_discord_handle += 1;
-        noteRejectedIdentityFields(cells, headers, rejectedRowReasons);
-        throw new RosterParseError("Missing handle or status");
+        stats.skipped_missing_discord_handle += 1;
+        continue;
       }
+      const status = parseStatusCell(cells[statusIndex] ?? "");
       if (status === "") {
-        rejectedRowReasons.missing_status += 1;
-        noteRejectedIdentityFields(cells, headers, rejectedRowReasons);
-        throw new RosterParseError("Missing handle or status");
+        stats.skipped_missing_status += 1;
+        continue;
       }
-      noteRejectedIdentityFields(cells, headers, rejectedRowReasons);
+      noteRejectedIdentityFields(cells, headers, stats.rejectedRowReasons);
       const adaptRoleValues = parseLookupCellValues(cells[rosterIndex] ?? "");
       parsedRows.push({ discordHandle, status, adaptRoleValues });
     }
@@ -556,6 +587,11 @@ export function parseLabRosterMessage(
       return { ok: false, reason: "invalid_row" };
     }
     throw error;
+  }
+
+  if (parsedRows.length === 0) {
+    logLabRosterParseStructure(stats);
+    return { ok: false, reason: "roster_no_rows" };
   }
 
   logLabRosterParseStructure(stats);
