@@ -105,16 +105,26 @@ function readCommaRecord(
     if (fieldCount !== "header" && fields.length >= fieldCount) {
       break;
     }
-    pos = skipWhitespace(text, pos);
+    const isLastFieldInRecord =
+      fieldCount !== "header" && fields.length === fieldCount - 1;
+    if (!isLastFieldInRecord) {
+      pos = skipWhitespace(text, pos);
+    }
     if (pos >= text.length) {
+      if (isLastFieldInRecord) {
+        fields.push("");
+      }
       break;
     }
-    const { field, nextPos } = readCommaSeparatedField(text, pos, {
-      lastFieldInRecord:
-        fieldCount !== "header" && fields.length === fieldCount - 1,
-    });
-    fields.push(field.trim());
-    pos = nextPos;
+    if (isLastFieldInRecord && isWhitespace(text[pos]!)) {
+      fields.push("");
+    } else {
+      const { field, nextPos } = readCommaSeparatedField(text, pos, {
+        lastFieldInRecord: isLastFieldInRecord,
+      });
+      fields.push(field.trim());
+      pos = nextPos;
+    }
     if (pos >= text.length) {
       break;
     }
@@ -363,6 +373,22 @@ export function isLabRosterExportMessage(
   return labRosterNotRecognizedReason(message, rosterColumn) === null;
 }
 
+function parseStatusCell(cell: string): string {
+  const trimmed = cell.trim();
+  if (trimmed === "") {
+    return "";
+  }
+  try {
+    const values = parseLookupCellValues(trimmed);
+    if (values.length === 1) {
+      return values[0]!;
+    }
+  } catch {
+    // plain status label
+  }
+  return trimmed;
+}
+
 function parseLookupCellValues(cell: string): string[] {
   const trimmed = cell.trim();
   if (trimmed === "") {
@@ -535,7 +561,7 @@ export function parseLabRosterMessage(
   try {
     for (const cells of table.records) {
       const discordHandle = (cells[handleIndex] ?? "").trim();
-      const status = (cells[statusIndex] ?? "").trim();
+      const status = parseStatusCell(cells[statusIndex] ?? "");
       if (discordHandle === "") {
         rejectedRowReasons.missing_discord_handle += 1;
         noteRejectedIdentityFields(cells, headers, rejectedRowReasons);

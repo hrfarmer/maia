@@ -7,9 +7,12 @@ import {
   SYNTHETIC_LAB_ROSTER_EXPORT_CSV_SPACE_SEPARATED,
   SYNTHETIC_LAB_ROSTER_EXPORT_CSV_SPACE_SEPARATED_MULTIWORD_TITLE,
   SYNTHETIC_LAB_ROSTER_EXPORT_INVALID_ROW,
+  SYNTHETIC_LAB_ROSTER_EXPORT_PRODUCTION_SHAPE,
+  PRODUCTION_SHAPE_LAB_ROSTER_HEADERS,
 } from "./fixture.js";
 import {
   isLabRosterExportMessage,
+  labRosterExportHeaders,
   labRosterNotRecognizedReason,
   normalizeLabRosterMessageBody,
   parseLabRosterMessage,
@@ -188,6 +191,44 @@ describe("parseLabRosterMessage", () => {
       return;
     }
     assert.equal(parsed.reason, "roster_no_rows");
+  });
+
+  it("parses one-line production-shaped exports when the last column is often empty", () => {
+    assert.deepEqual(
+      labRosterExportHeaders(SYNTHETIC_LAB_ROSTER_EXPORT_PRODUCTION_SHAPE),
+      [...PRODUCTION_SHAPE_LAB_ROSTER_HEADERS],
+    );
+    assert.equal(
+      isLabRosterExportMessage(
+        SYNTHETIC_LAB_ROSTER_EXPORT_PRODUCTION_SHAPE,
+        "Subteam",
+      ),
+      true,
+    );
+    const parsed = parseLabRosterMessage(
+      SYNTHETIC_LAB_ROSTER_EXPORT_PRODUCTION_SHAPE,
+      "Subteam",
+    );
+    assert.equal(parsed.ok, true);
+    if (!parsed.ok) {
+      return;
+    }
+    assert.equal(parsed.rows.length, 36);
+    assert.equal(PRODUCTION_SHAPE_LAB_ROSTER_HEADERS.length, 42);
+    assert.equal(
+      PRODUCTION_SHAPE_LAB_ROSTER_HEADERS.at(-1),
+      "Exp_x002e_GraduationSemester#Id",
+    );
+    const row0 = parsed.rows.find((row) => row.discordHandle === "synthetic.user.0");
+    assert.ok(row0);
+    assert.equal(row0.status, "Active");
+    assert.deepEqual(row0.adaptRoleValues.sort(), ["TeamA", "TeamB"]);
+    const row11 = parsed.rows.find((row) => row.discordHandle === "synthetic.user.11");
+    assert.ok(row11);
+    assert.deepEqual(row11.adaptRoleValues.sort(), ["TeamL", "TeamM"]);
+    const row4 = parsed.rows.find((row) => row.discordHandle === "synthetic.user.4");
+    assert.ok(row4);
+    assert.equal(row4.status, "Inactive");
   });
 
   it("reports non-PII reasons when a message is not a roster export", () => {
