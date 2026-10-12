@@ -276,6 +276,7 @@ describe("guild plugin config PATCH semantics", () => {
       }),
       { params: Promise.resolve({ guildId: MOCK_GUILD_ID, pluginId: PLUGIN_ID }) },
     );
+    assert.ok(enableRes);
     assert.equal(enableRes.status, 200);
     const enableBody = (await enableRes.json()) as { plugin?: { enabled: boolean } };
     assert.equal(enableBody.plugin?.enabled, true);
@@ -288,6 +289,7 @@ describe("guild plugin config PATCH semantics", () => {
       }),
       { params: Promise.resolve({ guildId: MOCK_GUILD_ID, pluginId: PLUGIN_ID }) },
     );
+    assert.ok(valuesRes);
     assert.equal(valuesRes.status, 200);
     const valuesBody = (await valuesRes.json()) as { plugin?: { enabled: boolean } };
     assert.equal(valuesBody.plugin?.enabled, true);
