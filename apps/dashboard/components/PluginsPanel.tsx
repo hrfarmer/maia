@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -95,6 +95,7 @@ export function PluginsPanel({ guildId }: PluginsPanelProps) {
   const [draftValues, setDraftValues] = useState<Record<string, string>>({});
   const [draftCron, setDraftCron] = useState("");
   const [selectedPluginId, setSelectedPluginId] = useState<string | null>(null);
+  const pluginConfigSaveInFlight = useRef(false);
 
   const loadPlugins = useCallback(async () => {
     const res = await fetch(`/api/servers/${guildId}/plugins`);
@@ -168,6 +169,37 @@ export function PluginsPanel({ guildId }: PluginsPanelProps) {
     }
   }
 
+  function buildPluginConfigPatch(input: {
+    enabled?: boolean;
+    values?: Record<string, string | null>;
+    cronExpression?: string | null;
+    slashCommandsEnabled?: boolean;
+  }) {
+    const patch: Record<string, unknown> = {};
+    if (input.enabled !== undefined) {
+      patch.enabled = input.enabled;
+    }
+    if (input.values !== undefined) {
+      patch.values = input.values;
+    }
+    if (input.cronExpression !== undefined) {
+      patch.cronExpression = input.cronExpression;
+    }
+    if (input.slashCommandsEnabled !== undefined) {
+      patch.slashCommandsEnabled = input.slashCommandsEnabled;
+    }
+    return patch;
+  }
+
+  function setPluginEnabledInScan(pluginId: string, enabled: boolean) {
+    setScan((prev) => ({
+      ...prev,
+      plugins: prev.plugins.map((plugin) =>
+        plugin.pluginId === pluginId ? { ...plugin, enabled } : plugin,
+      ),
+    }));
+  }
+
   async function savePluginConfig(input: {
     pluginId: string;
     enabled?: boolean;
@@ -175,6 +207,16 @@ export function PluginsPanel({ guildId }: PluginsPanelProps) {
     cronExpression?: string | null;
     slashCommandsEnabled?: boolean;
   }) {
+    if (pluginConfigSaveInFlight.current) {
+      return;
+    }
+    pluginConfigSaveInFlight.current = true;
+    const previousEnabled = scan.plugins.find(
+      (plugin) => plugin.pluginId === input.pluginId,
+    )?.enabled;
+    if (input.enabled !== undefined) {
+      setPluginEnabledInScan(input.pluginId, input.enabled);
+    }
     setBusy(true);
     setStatus(null);
     try {
@@ -183,16 +225,14 @@ export function PluginsPanel({ guildId }: PluginsPanelProps) {
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            enabled: input.enabled,
-            values: input.values,
-            cronExpression: input.cronExpression,
-            slashCommandsEnabled: input.slashCommandsEnabled,
-          }),
+          body: JSON.stringify(buildPluginConfigPatch(input)),
         },
       );
       const data = (await res.json()) as { error?: string; plugin?: PluginRow };
       if (!res.ok) {
+        if (input.enabled !== undefined && previousEnabled !== undefined) {
+          setPluginEnabledInScan(input.pluginId, previousEnabled);
+        }
         setStatus(data.error ?? "Save failed");
         return;
       }
@@ -200,6 +240,7 @@ export function PluginsPanel({ guildId }: PluginsPanelProps) {
       await loadPlugins();
     } finally {
       setBusy(false);
+      pluginConfigSaveInFlight.current = false;
     }
   }
 
@@ -509,12 +550,15 @@ export function PluginsPanel({ guildId }: PluginsPanelProps) {
                   id="plugin-enabled"
                   checked={selectedPlugin.enabled}
                   disabled={!selectedPlugin.canEnable && !selectedPlugin.enabled}
-                  onCheckedChange={(checked) =>
+                  onCheckedChange={(checked) => {
+                    if (checked === selectedPlugin.enabled) {
+                      return;
+                    }
                     void savePluginConfig({
                       pluginId: selectedPlugin.pluginId!,
                       enabled: checked,
-                    })
-                  }
+                    });
+                  }}
                 />
                 <Label htmlFor="plugin-enabled">Enabled</Label>
               </div>

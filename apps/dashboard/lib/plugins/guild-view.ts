@@ -139,6 +139,7 @@ export function applyGuildPluginValuePatch(input: {
   existingValues: Map<string, string>;
   patch: Record<string, string | null | undefined>;
   requestedEnabled?: boolean;
+  previousEnabled?: boolean;
 }): {
   values: Map<string, string>;
   enabled: boolean;
@@ -152,7 +153,7 @@ export function applyGuildPluginValuePatch(input: {
     values.set(key, raw);
   }
 
-  let enabled = input.requestedEnabled ?? false;
+  let enabled = input.requestedEnabled ?? input.previousEnabled ?? false;
   if (shouldDisableAfterValueChange(input.environment, values)) {
     enabled = false;
   } else if (input.requestedEnabled === true) {

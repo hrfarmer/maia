@@ -154,6 +154,7 @@ export async function updateGuildPluginConfig(
     existingValues,
     patch: input.values ?? {},
     requestedEnabled: input.enabled,
+    previousEnabled,
   });
 
   if (input.enabled === true && !canEnableGuildPlugin(environment, values)) {
