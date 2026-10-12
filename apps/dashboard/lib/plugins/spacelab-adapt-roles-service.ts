@@ -14,6 +14,7 @@ import {
   listSpacelabAdaptRoleLinks,
   setSpacelabAdaptRoleLink,
   setSpacelabGeneralMemberRoleId,
+  setSpacelabLastAppliedAdaptLinks,
   upsertSpacelabParsedRoster,
 } from "@maia/db";
 
@@ -44,6 +45,7 @@ export interface SpacelabRosterRepository {
   setLinkedRole(adaptValue: string, discordRoleId: string | null): Promise<void>;
   getGeneralMemberRoleId?(): Promise<string | null>;
   setGeneralMemberRoleId?(discordRoleId: string | null): Promise<void>;
+  snapshotLastAppliedAdaptLinksBeforeChange?(): Promise<void>;
   clearReconcileFailures?(): Promise<void>;
   bumpAdaptLinksRevision?(): Promise<void>;
 }
@@ -71,6 +73,18 @@ export function createDbSpacelabRosterRepository(
     },
     async setGeneralMemberRoleId(discordRoleId) {
       await setSpacelabGeneralMemberRoleId(db, guildId, discordRoleId);
+    },
+    async snapshotLastAppliedAdaptLinksBeforeChange() {
+      const [linkRows, generalMemberRoleId] = await Promise.all([
+        listSpacelabAdaptRoleLinks(db, guildId),
+        getSpacelabGeneralMemberRoleId(db, guildId),
+      ]);
+      await setSpacelabLastAppliedAdaptLinks(
+        db,
+        guildId,
+        new Map(linkRows.map((row) => [row.adaptValue, row.discordRoleId])),
+        generalMemberRoleId,
+      );
     },
     async clearReconcileFailures() {
       await clearSpacelabReconcileFailures(db, guildId);
@@ -128,6 +142,12 @@ export async function saveSpacelabAdaptRoleLinks(
   links: Record<string, string | null>,
   generalMemberRoleId?: string | null,
 ) {
+  if (
+    Object.keys(links).length > 0 ||
+    generalMemberRoleId !== undefined
+  ) {
+    await repo.snapshotLastAppliedAdaptLinksBeforeChange?.();
+  }
   for (const [adaptValue, discordRoleId] of Object.entries(links)) {
     await repo.setLinkedRole(adaptValue, discordRoleId);
   }

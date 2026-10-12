@@ -91,7 +91,13 @@ export interface SpacelabReconcileStateResponse {
   }>;
   links: Record<string, string>;
   generalMemberRoleId?: string | null;
-  rememberedMembers: Array<{ discordUserId: string; discordHandle: string }>;
+  previousAppliedLinks?: Record<string, string>;
+  previousAppliedGeneralMemberRoleId?: string | null;
+  rememberedMembers: Array<{
+    discordUserId: string;
+    discordHandle: string;
+    grantedRoleIds?: string[];
+  }>;
   failures: Array<{ memberKey: string; discordHandle: string; attempts: number }>;
 }
 

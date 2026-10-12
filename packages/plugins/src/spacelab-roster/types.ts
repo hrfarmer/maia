@@ -21,6 +21,7 @@ export type ParseLabRosterResult =
 export interface SpacelabRememberedMember {
   discordUserId: string;
   discordHandle: string;
+  grantedRoleIds?: string[];
 }
 
 export interface SpacelabReconcileFailure {

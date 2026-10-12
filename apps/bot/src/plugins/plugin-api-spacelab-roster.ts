@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Db } from "@maia/db";
 import {
+  commitSpacelabLastAppliedAdaptLinksFromCurrent,
   getSpacelabReconcileState,
   getSpacelabGuildCycleState,
   ingestSpacelabLabRosterMessage,
@@ -145,6 +146,11 @@ export async function tryHandlePluginSpacelabRosterRequest(
       rows: state.rows,
       links: Object.fromEntries(state.links.entries()),
       generalMemberRoleId: state.generalMemberRoleId,
+      previousAppliedLinks: Object.fromEntries(
+        state.previousAppliedLinks.entries(),
+      ),
+      previousAppliedGeneralMemberRoleId:
+        state.previousAppliedGeneralMemberRoleId,
       rememberedMembers: state.rememberedMembers,
       failures: state.failures,
     });
@@ -188,6 +194,7 @@ export async function tryHandlePluginSpacelabRosterRequest(
         typeof saveSpacelabReconcileResult
       >[2]["failures"],
     });
+    await commitSpacelabLastAppliedAdaptLinksFromCurrent(db, guildId);
     sendJson(res, 200, { ok: true });
     return true;
   }

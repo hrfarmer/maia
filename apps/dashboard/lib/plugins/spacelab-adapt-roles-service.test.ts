@@ -23,6 +23,7 @@ function createMemoryRepository(): SpacelabRosterRepository & {
     } | null,
     links: new Map<string, string>(),
     generalMemberRoleId: null as string | null,
+    lastAppliedSnapshots: 0,
     failuresCleared: 0,
   };
   return {
@@ -51,11 +52,17 @@ function createMemoryRepository(): SpacelabRosterRepository & {
     async setGeneralMemberRoleId(discordRoleId) {
       state.generalMemberRoleId = discordRoleId;
     },
+    async snapshotLastAppliedAdaptLinksBeforeChange() {
+      state.lastAppliedSnapshots += 1;
+    },
     async clearReconcileFailures() {
       state.failuresCleared += 1;
     },
     get failuresCleared() {
       return state.failuresCleared;
+    },
+    get lastAppliedSnapshots() {
+      return state.lastAppliedSnapshots;
     },
   };
 }
@@ -113,6 +120,13 @@ describe("spacelab adapt roles service", () => {
     const beta = view.adaptRoleRows.find((row) => row.adaptValue === "Beta");
     assert.equal(alpha?.linkedRoleId, "role-1");
     assert.equal(beta?.linkedRoleId, "role-1");
+  });
+
+  it("snapshots last applied links before saving link changes", async () => {
+    const repo = createMemoryRepository();
+    await ingestSpacelabRosterMessage(repo, SYNTHETIC_LAB_ROSTER_EXPORT, "Subteam");
+    await saveSpacelabAdaptRoleLinks(repo, { Alpha: "role-1" });
+    assert.equal(repo.lastAppliedSnapshots, 1);
   });
 
   it("clears reconcile failures when adapt role links are saved", async () => {

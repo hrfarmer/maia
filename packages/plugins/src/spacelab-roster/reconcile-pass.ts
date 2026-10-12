@@ -22,6 +22,8 @@ export interface ReconcilePassInput {
   rememberedMembers: SpacelabRememberedMember[];
   links: Map<string, string>;
   generalMemberRoleId?: string | null;
+  previousAppliedLinks: Map<string, string>;
+  previousAppliedGeneralMemberRoleId?: string | null;
   guildRoleIds: Set<string>;
   failures: SpacelabReconcileFailure[];
   mode: SpacelabReconcilePassMode;
@@ -225,11 +227,34 @@ function rememberMember(
   remembered: SpacelabRememberedMember[],
   discordUserId: string,
   discordHandle: string,
+  grantedRoleIds: string[],
 ): SpacelabRememberedMember[] {
   const without = remembered.filter(
     (member) => member.discordUserId !== discordUserId,
   );
-  return [...without, { discordUserId, discordHandle }];
+  return [...without, { discordUserId, discordHandle, grantedRoleIds }];
+}
+
+export function roleIdsFromLinkMap(links: Map<string, string>): Set<string> {
+  return new Set(links.values());
+}
+
+export function removableMaiaRoleIdsForMember(
+  member: SpacelabRememberedMember | undefined,
+  previousAppliedLinkRoleIds: Set<string>,
+  previousAppliedGeneralMemberRoleId: string | null | undefined,
+): Set<string> {
+  const granted = member?.grantedRoleIds ?? [];
+  const removable = new Set(granted);
+  if (granted.length === 0) {
+    for (const roleId of previousAppliedLinkRoleIds) {
+      removable.add(roleId);
+    }
+    if (previousAppliedGeneralMemberRoleId) {
+      removable.add(previousAppliedGeneralMemberRoleId);
+    }
+  }
+  return removable;
 }
 
 interface WorkItem {
@@ -362,12 +387,10 @@ export async function runReconcilePass(
     input.guildRoleIds.size > 0
       ? input.guildRoleIds
       : await api.listGuildRoleIds();
-  const managedRoleIds = buildManagedRoleIds(
-    input.links,
-    guildRoleIds,
-    input.generalMemberRoleId,
-  );
   const workItems = buildWorkItems({ ...input, guildRoleIds });
+  const previousAppliedLinkRoleIds = roleIdsFromLinkMap(
+    input.previousAppliedLinks,
+  );
 
   let memberLookup = new Map<
     string,
@@ -440,14 +463,24 @@ export async function runReconcilePass(
 
     try {
       const currentRoleIds = await api.getMemberRoleIds(userId);
-      const currentManaged = currentRoleIds.filter((roleId) =>
-        managedRoleIds.has(roleId),
+      const rememberedMember = rememberedMembers.find(
+        (member) => member.discordUserId === userId,
+      );
+      const removableRoleIds = removableMaiaRoleIdsForMember(
+        rememberedMember,
+        previousAppliedLinkRoleIds,
+        input.previousAppliedGeneralMemberRoleId,
+      );
+      const maiaOwnedOnMember = currentRoleIds.filter((roleId) =>
+        removableRoleIds.has(roleId),
       );
       const desired = item.desiredLinkedRoleIds;
       const toAdd = [...desired].filter(
-        (roleId) => !currentManaged.includes(roleId),
+        (roleId) => !currentRoleIds.includes(roleId),
       );
-      const toRemove = currentManaged.filter((roleId) => !desired.has(roleId));
+      const toRemove = maiaOwnedOnMember.filter(
+        (roleId) => !desired.has(roleId),
+      );
 
       for (const roleId of toAdd) {
         await api.addRole(userId, roleId);
@@ -462,6 +495,7 @@ export async function runReconcilePass(
         rememberedMembers,
         userId,
         item.discordHandle,
+        [...desired],
       );
       failures = removeFailure(failures, failureKey);
       failures = removeFailure(failures, handleFailureKey);

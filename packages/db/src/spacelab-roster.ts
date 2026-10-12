@@ -60,12 +60,6 @@ export async function setSpacelabGeneralMemberRoleId(
   guildId: string,
   generalMemberRoleId: string | null,
 ) {
-  if (generalMemberRoleId === null) {
-    await db
-      .delete(spacelabGuildAdaptSettings)
-      .where(eq(spacelabGuildAdaptSettings.guildId, guildId));
-    return;
-  }
   await db
     .insert(spacelabGuildAdaptSettings)
     .values({ guildId, generalMemberRoleId })
@@ -73,6 +67,66 @@ export async function setSpacelabGeneralMemberRoleId(
       target: spacelabGuildAdaptSettings.guildId,
       set: { generalMemberRoleId },
     });
+}
+
+export interface SpacelabLastAppliedAdaptLinks {
+  links: Map<string, string>;
+  generalMemberRoleId: string | null;
+}
+
+export async function getSpacelabLastAppliedAdaptLinks(
+  db: Db,
+  guildId: string,
+): Promise<SpacelabLastAppliedAdaptLinks> {
+  const row = await db.query.spacelabGuildAdaptSettings.findFirst({
+    where: eq(spacelabGuildAdaptSettings.guildId, guildId),
+  });
+  if (!row) {
+    return { links: new Map(), generalMemberRoleId: null };
+  }
+  const parsed = JSON.parse(row.lastAppliedLinksJson) as Record<string, string>;
+  return {
+    links: new Map(Object.entries(parsed)),
+    generalMemberRoleId: row.lastAppliedGeneralMemberRoleId ?? null,
+  };
+}
+
+export async function setSpacelabLastAppliedAdaptLinks(
+  db: Db,
+  guildId: string,
+  links: Map<string, string>,
+  generalMemberRoleId: string | null,
+) {
+  await db
+    .insert(spacelabGuildAdaptSettings)
+    .values({
+      guildId,
+      lastAppliedLinksJson: JSON.stringify(Object.fromEntries(links)),
+      lastAppliedGeneralMemberRoleId: generalMemberRoleId,
+    })
+    .onConflictDoUpdate({
+      target: spacelabGuildAdaptSettings.guildId,
+      set: {
+        lastAppliedLinksJson: JSON.stringify(Object.fromEntries(links)),
+        lastAppliedGeneralMemberRoleId: generalMemberRoleId,
+      },
+    });
+}
+
+export async function snapshotSpacelabCurrentAdaptLinksAsLastApplied(
+  db: Db,
+  guildId: string,
+) {
+  const [linkRows, generalMemberRoleId] = await Promise.all([
+    listSpacelabAdaptRoleLinks(db, guildId),
+    getSpacelabGeneralMemberRoleId(db, guildId),
+  ]);
+  await setSpacelabLastAppliedAdaptLinks(
+    db,
+    guildId,
+    new Map(linkRows.map((row) => [row.adaptValue, row.discordRoleId])),
+    generalMemberRoleId,
+  );
 }
 
 export async function upsertSpacelabParsedRoster(

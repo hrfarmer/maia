@@ -217,6 +217,12 @@ export const spacelabGuildAdaptSettings = pgTable(
       .primaryKey()
       .references(() => guilds.id, { onDelete: "cascade" }),
     generalMemberRoleId: text("general_member_role_id"),
+    lastAppliedLinksJson: text("last_applied_links_json")
+      .notNull()
+      .default("{}"),
+    lastAppliedGeneralMemberRoleId: text(
+      "last_applied_general_member_role_id",
+    ),
   },
 );
 
@@ -228,6 +234,7 @@ export const spacelabRememberedMembers = pgTable(
       .references(() => guilds.id, { onDelete: "cascade" }),
     discordUserId: text("discord_user_id").notNull(),
     discordHandle: text("discord_handle").notNull(),
+    grantedRoleIdsJson: text("granted_role_ids_json").notNull().default("[]"),
   },
   (table) => [
     primaryKey({ columns: [table.guildId, table.discordUserId] }),
