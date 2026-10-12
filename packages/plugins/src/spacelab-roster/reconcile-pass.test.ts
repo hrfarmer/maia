@@ -129,9 +129,16 @@ describe("runReconcilePass", () => {
       rows: partial.rows ?? [],
       rememberedMembers: partial.rememberedMembers ?? [],
       links: partial.links ?? baseLinks,
+      generalMemberRoleId: partial.generalMemberRoleId ?? null,
       guildRoleIds:
         partial.guildRoleIds ??
-        new Set(["role-alpha", "role-beta", "role-gamma", "role-shared"]),
+        new Set([
+          "role-alpha",
+          "role-beta",
+          "role-gamma",
+          "role-shared",
+          "role-general",
+        ]),
       failures: partial.failures ?? [],
       mode: partial.mode ?? { kind: "full" },
     };
@@ -505,6 +512,116 @@ describe("runReconcilePass", () => {
       api,
     );
     assert.equal(sixth.failures[0]?.attempts, 5);
+  });
+
+  it("grants the general member role when a row qualifies for ADAPT", async () => {
+    const calls: Array<{ op: string; userId: string; roleId?: string }> = [];
+    const api = fakeApi({
+      calls,
+      guildMemberList: [{ id: "uid-a", username: "user.a" }],
+      roles: new Map([["uid-a", []]]),
+    });
+    await runReconcilePass(
+      input({
+        generalMemberRoleId: "role-general",
+        rows: [
+          { discordHandle: "user.a", status: "Active", adaptRoleValues: ["Alpha"] },
+        ],
+      }),
+      api,
+    );
+    assert.deepEqual(
+      [...calls].sort((a, b) => a.roleId!.localeCompare(b.roleId!)),
+      [
+        { op: "add", userId: "uid-a", roleId: "role-alpha" },
+        { op: "add", userId: "uid-a", roleId: "role-general" },
+      ],
+    );
+  });
+
+  it("does not grant the general member role when inactive or values are unmapped", async () => {
+    const calls: Array<{ op: string; userId: string; roleId?: string }> = [];
+    const api = fakeApi({
+      calls,
+      guildMemberList: [
+        { id: "uid-inactive", username: "inactive.user" },
+        { id: "uid-unmapped", username: "unmapped.user" },
+      ],
+      roles: new Map([
+        ["uid-inactive", []],
+        ["uid-unmapped", []],
+      ]),
+    });
+    await runReconcilePass(
+      input({
+        generalMemberRoleId: "role-general",
+        rows: [
+          {
+            discordHandle: "inactive.user",
+            status: "Inactive",
+            adaptRoleValues: ["Alpha"],
+          },
+          {
+            discordHandle: "unmapped.user",
+            status: "Active",
+            adaptRoleValues: ["Delta"],
+          },
+        ],
+      }),
+      api,
+    );
+    assert.equal(calls.length, 0);
+  });
+
+  it("removes the general member role when a remembered member no longer qualifies", async () => {
+    const calls: Array<{ op: string; userId: string; roleId?: string }> = [];
+    const api = fakeApi({
+      calls,
+      roles: new Map([["uid-a", ["role-general", "role-alpha"]]]),
+    });
+    await runReconcilePass(
+      input({
+        generalMemberRoleId: "role-general",
+        rows: [
+          {
+            discordHandle: "user.a",
+            status: "Inactive",
+            adaptRoleValues: ["Alpha"],
+            discordUserId: "uid-a",
+          },
+        ],
+        rememberedMembers: [{ discordUserId: "uid-a", discordHandle: "user.a" }],
+      }),
+      api,
+    );
+    assert.deepEqual(
+      [...calls].sort((a, b) => a.roleId!.localeCompare(b.roleId!)),
+      [
+        { op: "remove", userId: "uid-a", roleId: "role-alpha" },
+        { op: "remove", userId: "uid-a", roleId: "role-general" },
+      ],
+    );
+  });
+
+  it("does not grant or remove a general member role when unset", async () => {
+    const calls: Array<{ op: string; userId: string; roleId?: string }> = [];
+    const api = fakeApi({
+      calls,
+      guildMemberList: [{ id: "uid-a", username: "user.a" }],
+      roles: new Map([["uid-a", ["role-general"]]]),
+    });
+    await runReconcilePass(
+      input({
+        generalMemberRoleId: null,
+        rows: [
+          { discordHandle: "user.a", status: "Active", adaptRoleValues: ["Alpha"] },
+        ],
+      }),
+      api,
+    );
+    assert.deepEqual(calls, [
+      { op: "add", userId: "uid-a", roleId: "role-alpha" },
+    ]);
   });
 
   it("never calls a replace-all-roles API", async () => {

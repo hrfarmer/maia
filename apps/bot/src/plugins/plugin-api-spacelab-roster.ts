@@ -144,6 +144,7 @@ export async function tryHandlePluginSpacelabRosterRequest(
     sendJson(res, 200, {
       rows: state.rows,
       links: Object.fromEntries(state.links.entries()),
+      generalMemberRoleId: state.generalMemberRoleId,
       rememberedMembers: state.rememberedMembers,
       failures: state.failures,
     });

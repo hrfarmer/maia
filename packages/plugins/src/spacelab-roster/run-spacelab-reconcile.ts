@@ -22,6 +22,7 @@ export async function runSpacelabGuildReconcile(
       rows: state.rows,
       rememberedMembers: state.rememberedMembers,
       links: new Map(Object.entries(state.links)),
+      generalMemberRoleId: state.generalMemberRoleId ?? null,
       guildRoleIds,
       failures: state.failures,
       mode,

@@ -83,6 +83,7 @@ describe("plugin spacelab roster reconcile API", () => {
               { adaptValue: "Alpha", discordRoleId: "role-alpha" },
             ],
           },
+          spacelabGuildAdaptSettings: { findFirst: async () => null },
           spacelabRememberedMembers: { findMany: async () => [] },
           spacelabReconcileFailures: { findMany: async () => [] },
         },

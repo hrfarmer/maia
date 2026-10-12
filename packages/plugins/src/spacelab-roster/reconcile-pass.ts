@@ -21,6 +21,7 @@ export interface ReconcilePassInput {
   rows: SavedRosterRow[];
   rememberedMembers: SpacelabRememberedMember[];
   links: Map<string, string>;
+  generalMemberRoleId?: string | null;
   guildRoleIds: Set<string>;
   failures: SpacelabReconcileFailure[];
   mode: SpacelabReconcilePassMode;
@@ -44,6 +45,54 @@ export function buildManagedLinkedRoleIds(
     }
   }
   return managed;
+}
+
+export function buildManagedRoleIds(
+  links: Map<string, string>,
+  guildRoleIds: Set<string>,
+  generalMemberRoleId?: string | null,
+): Set<string> {
+  const managed = buildManagedLinkedRoleIds(links, guildRoleIds);
+  if (generalMemberRoleId && guildRoleIds.has(generalMemberRoleId)) {
+    managed.add(generalMemberRoleId);
+  }
+  return managed;
+}
+
+export function rowQualifiesForGeneralAdaptMemberRole(
+  row: SavedRosterRow,
+  links: Map<string, string>,
+  guildRoleIds: Set<string>,
+): boolean {
+  if (!rosterStatusIsActive(row.status)) {
+    return false;
+  }
+  return (
+    desiredLinkedRoleIdsForValues(row.adaptRoleValues, links, guildRoleIds)
+      .size > 0
+  );
+}
+
+export function desiredRoleIdsForMember(
+  adaptRoleValues: string[],
+  links: Map<string, string>,
+  guildRoleIds: Set<string>,
+  generalMemberRoleId: string | null | undefined,
+  qualifiesForGeneralMemberRole: boolean,
+): Set<string> {
+  const desired = desiredLinkedRoleIdsForValues(
+    adaptRoleValues,
+    links,
+    guildRoleIds,
+  );
+  if (
+    qualifiesForGeneralMemberRole &&
+    generalMemberRoleId &&
+    guildRoleIds.has(generalMemberRoleId)
+  ) {
+    desired.add(generalMemberRoleId);
+  }
+  return desired;
 }
 
 export function desiredLinkedRoleIdsForValues(
@@ -244,14 +293,21 @@ function buildWorkItems(input: ReconcilePassInput): WorkItem[] {
       Boolean(remembered);
 
     if (active && hasValues) {
+      const qualifiesForGeneral = rowQualifiesForGeneralAdaptMemberRole(
+        row,
+        input.links,
+        input.guildRoleIds,
+      );
       pushItem({
         discordHandle: row.discordHandle,
         discordUserId,
         rosterRow: row,
-        desiredLinkedRoleIds: desiredLinkedRoleIdsForValues(
+        desiredLinkedRoleIds: desiredRoleIdsForMember(
           row.adaptRoleValues,
           input.links,
           input.guildRoleIds,
+          input.generalMemberRoleId,
+          qualifiesForGeneral,
         ),
         memberKey,
       });
@@ -306,7 +362,11 @@ export async function runReconcilePass(
     input.guildRoleIds.size > 0
       ? input.guildRoleIds
       : await api.listGuildRoleIds();
-  const managedRoleIds = buildManagedLinkedRoleIds(input.links, guildRoleIds);
+  const managedRoleIds = buildManagedRoleIds(
+    input.links,
+    guildRoleIds,
+    input.generalMemberRoleId,
+  );
   const workItems = buildWorkItems({ ...input, guildRoleIds });
 
   let memberLookup = new Map<

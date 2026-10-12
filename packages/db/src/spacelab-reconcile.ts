@@ -11,12 +11,14 @@ import {
   spacelabReconcileFailures,
   spacelabRememberedMembers,
 } from "./schema.js";
+import { getSpacelabGeneralMemberRoleId } from "./spacelab-roster.js";
 
 export interface SpacelabReconcileState {
   rows: SavedRosterRow[];
   adaptValues: string[];
   parsedAt: Date | null;
   links: Map<string, string>;
+  generalMemberRoleId: string | null;
   rememberedMembers: SpacelabRememberedMember[];
   failures: SpacelabReconcileFailure[];
 }
@@ -58,10 +60,11 @@ export async function getSpacelabReconcileState(
     adaptValues: JSON.parse(rosterRow.adaptValuesJson) as string[],
     parsedAt: rosterRow.parsedAt,
   };
-  const [links, remembered, failures] = await Promise.all([
+  const [links, generalMemberRoleId, remembered, failures] = await Promise.all([
     db.query.spacelabAdaptRoleLinks.findMany({
       where: eq(spacelabAdaptRoleLinks.guildId, guildId),
     }),
+    getSpacelabGeneralMemberRoleId(db, guildId),
     db.query.spacelabRememberedMembers.findMany({
       where: eq(spacelabRememberedMembers.guildId, guildId),
     }),
@@ -74,6 +77,7 @@ export async function getSpacelabReconcileState(
     adaptValues: roster.adaptValues,
     parsedAt: roster.parsedAt,
     links: new Map(links.map((row) => [row.adaptValue, row.discordRoleId])),
+    generalMemberRoleId,
     rememberedMembers: remembered.map((row) => ({
       discordUserId: row.discordUserId,
       discordHandle: row.discordHandle,

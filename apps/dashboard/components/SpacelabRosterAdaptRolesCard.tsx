@@ -28,6 +28,8 @@ interface AdaptRolesView {
   adaptRoleRows: AdaptRoleRow[];
   guildRoles: GuildRoleOption[];
   parsedAt: string | null;
+  generalMemberRoleId: string | null;
+  generalMemberRoleMissing: boolean;
 }
 
 interface SpacelabRosterAdaptRolesCardProps {
@@ -60,7 +62,7 @@ export function SpacelabRosterAdaptRolesCard({
     void loadView();
   }, [loadView]);
 
-  async function saveLink(adaptValue: string, discordRoleId: string | null) {
+  async function patchSettings(body: Record<string, unknown>) {
     setBusy(true);
     setStatus(null);
     try {
@@ -69,9 +71,7 @@ export function SpacelabRosterAdaptRolesCard({
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            links: { [adaptValue]: discordRoleId },
-          }),
+          body: JSON.stringify(body),
         },
       );
       if (!res.ok) {
@@ -85,6 +85,14 @@ export function SpacelabRosterAdaptRolesCard({
     }
   }
 
+  async function saveLink(adaptValue: string, discordRoleId: string | null) {
+    await patchSettings({ links: { [adaptValue]: discordRoleId } });
+  }
+
+  async function saveGeneralMemberRole(discordRoleId: string | null) {
+    await patchSettings({ generalMemberRoleId: discordRoleId });
+  }
+
   if (!view) {
     return (
       <p
@@ -96,10 +104,61 @@ export function SpacelabRosterAdaptRolesCard({
     );
   }
 
+  const generalMemberRoleField = (
+    <div
+      className="flex flex-col gap-2 rounded-sm border p-3 sm:flex-row sm:items-center sm:justify-between"
+      data-testid="spacelab-general-member-role"
+    >
+      <div className="min-w-0 space-y-1">
+        <Label htmlFor="spacelab-general-member-role-select">
+          All ADAPT members
+        </Label>
+        {view.generalMemberRoleMissing ? (
+          <Badge variant="destructive" className="rounded-sm">
+            Role missing
+          </Badge>
+        ) : null}
+      </div>
+      <Select
+        disabled={busy}
+        value={view.generalMemberRoleId ?? UNLINKED_VALUE}
+        onValueChange={(value) =>
+          void saveGeneralMemberRole(
+            value === UNLINKED_VALUE ? null : value,
+          )
+        }
+      >
+        <SelectTrigger
+          id="spacelab-general-member-role-select"
+          className={cn("w-full rounded-sm sm:w-[min(100%,16rem)]")}
+          aria-label="All ADAPT members role"
+        >
+          <SelectValue placeholder="Select role" />
+        </SelectTrigger>
+        <SelectContent className="rounded-sm">
+          <SelectItem value={UNLINKED_VALUE} className="rounded-sm">
+            None
+          </SelectItem>
+          {view.guildRoles.map((role) => (
+            <SelectItem key={role.id} value={role.id} className="rounded-sm">
+              {role.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+
   if (view.adaptRoleRows.length === 0) {
     return (
-      <div className="space-y-2" data-testid="spacelab-adapt-roles">
+      <div className="space-y-3" data-testid="spacelab-adapt-roles">
         <Label>ADAPT Roles</Label>
+        {status ? (
+          <p className="rounded-sm border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {status}
+          </p>
+        ) : null}
+        {generalMemberRoleField}
         <p className="text-sm text-muted-foreground">No roster values yet.</p>
       </div>
     );
@@ -121,6 +180,8 @@ export function SpacelabRosterAdaptRolesCard({
           {status}
         </p>
       ) : null}
+
+      {generalMemberRoleField}
 
       <ul className="space-y-3">
         {view.adaptRoleRows.map((row) => (

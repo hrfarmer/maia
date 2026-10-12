@@ -15,6 +15,7 @@ import {
 import {
   getDevSpacelabAdaptRolesView,
   patchDevSpacelabAdaptRoleLinks,
+  patchDevSpacelabGeneralMemberRoleId,
 } from "@/lib/dev-spacelab-adapt-roles";
 import { DEV_GUILD_ID, devHelpersEnabled } from "@/lib/dev-fixtures";
 import { listRolesForGuild } from "@/lib/moderation/service";
@@ -67,36 +68,61 @@ export async function PATCH(request: Request, context: RouteContext) {
     return jsonError("Invalid JSON body", 400);
   }
 
-  const links =
-    body &&
-    typeof body === "object" &&
-    body !== null &&
-    "links" in body &&
-    typeof (body as { links: unknown }).links === "object" &&
-    (body as { links: unknown }).links !== null
-      ? ((body as { links: Record<string, unknown> }).links as Record<
-          string,
-          unknown
-        >)
+  const record =
+    body && typeof body === "object" && body !== null
+      ? (body as Record<string, unknown>)
       : null;
-  if (!links) {
-    return jsonError("Expected links object", 400);
+  if (!record) {
+    return jsonError("Invalid body", 400);
+  }
+
+  const links =
+    "links" in record &&
+    typeof record.links === "object" &&
+    record.links !== null
+      ? (record.links as Record<string, unknown>)
+      : null;
+  const generalMemberRoleIdRaw = record.generalMemberRoleId;
+  const hasGeneralMemberRoleId = "generalMemberRoleId" in record;
+  if (!links && !hasGeneralMemberRoleId) {
+    return jsonError("Expected links and/or generalMemberRoleId", 400);
   }
 
   const normalized: Record<string, string | null> = {};
-  for (const [adaptValue, roleId] of Object.entries(links)) {
-    if (roleId === null) {
-      normalized[adaptValue] = null;
-      continue;
+  if (links) {
+    for (const [adaptValue, roleId] of Object.entries(links)) {
+      if (roleId === null) {
+        normalized[adaptValue] = null;
+        continue;
+      }
+      if (typeof roleId !== "string" || roleId.trim() === "") {
+        return jsonError(`Invalid role id for ${adaptValue}`, 400);
+      }
+      normalized[adaptValue] = roleId;
     }
-    if (typeof roleId !== "string" || roleId.trim() === "") {
-      return jsonError(`Invalid role id for ${adaptValue}`, 400);
+  }
+
+  let generalMemberRoleId: string | null | undefined;
+  if (hasGeneralMemberRoleId) {
+    if (generalMemberRoleIdRaw === null) {
+      generalMemberRoleId = null;
+    } else if (typeof generalMemberRoleIdRaw === "string") {
+      if (generalMemberRoleIdRaw.trim() === "") {
+        return jsonError("Invalid generalMemberRoleId", 400);
+      }
+      generalMemberRoleId = generalMemberRoleIdRaw;
+    } else {
+      return jsonError("Invalid generalMemberRoleId", 400);
     }
-    normalized[adaptValue] = roleId;
   }
 
   if (devHelpersEnabled() && guildId === DEV_GUILD_ID) {
-    patchDevSpacelabAdaptRoleLinks(normalized);
+    if (links) {
+      patchDevSpacelabAdaptRoleLinks(normalized);
+    }
+    if (hasGeneralMemberRoleId) {
+      patchDevSpacelabGeneralMemberRoleId(generalMemberRoleId ?? null);
+    }
     return NextResponse.json(getDevSpacelabAdaptRolesView());
   }
 
@@ -119,8 +145,18 @@ export async function PATCH(request: Request, context: RouteContext) {
       return jsonError("Role is not in this guild", 400);
     }
   }
+  if (
+    generalMemberRoleId &&
+    !allowedRoleIds.has(generalMemberRoleId)
+  ) {
+    return jsonError("Role is not in this guild", 400);
+  }
 
-  await saveSpacelabAdaptRoleLinks(repo, normalized);
+  await saveSpacelabAdaptRoleLinks(
+    repo,
+    normalized,
+    hasGeneralMemberRoleId ? (generalMemberRoleId ?? null) : undefined,
+  );
   await enqueuePluginGuildConfigNotification(db, {
     pluginId: SPACELAB_ROSTER_PLUGIN_ID,
     guildId,

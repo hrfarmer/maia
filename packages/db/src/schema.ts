@@ -210,6 +210,16 @@ export const spacelabAdaptRoleLinks = pgTable(
   (table) => [primaryKey({ columns: [table.guildId, table.adaptValue] })],
 );
 
+export const spacelabGuildAdaptSettings = pgTable(
+  "spacelab_guild_adapt_settings",
+  {
+    guildId: varchar("guild_id", { length: 20 })
+      .primaryKey()
+      .references(() => guilds.id, { onDelete: "cascade" }),
+    generalMemberRoleId: text("general_member_role_id"),
+  },
+);
+
 export const spacelabRememberedMembers = pgTable(
   "spacelab_remembered_members",
   {

@@ -9,6 +9,7 @@ import type { SpacelabAdaptRolesView } from "@/lib/plugins/spacelab-adapt-roles-
 const devState = {
   adaptValues: [] as string[],
   links: new Map<string, string>(),
+  generalMemberRoleId: null as string | null,
   parsedAt: null as string | null,
 };
 
@@ -35,7 +36,18 @@ export function getDevSpacelabAdaptRolesView(): SpacelabAdaptRolesView {
     }),
     guildRoles: devRoles.map((role) => ({ id: role.id, name: role.name })),
     parsedAt: devState.parsedAt,
+    generalMemberRoleId: devState.generalMemberRoleId,
+    generalMemberRoleMissing: Boolean(
+      devState.generalMemberRoleId &&
+        !guildRoleIds.has(devState.generalMemberRoleId),
+    ),
   };
+}
+
+export function patchDevSpacelabGeneralMemberRoleId(
+  generalMemberRoleId: string | null,
+) {
+  devState.generalMemberRoleId = generalMemberRoleId;
 }
 
 export function patchDevSpacelabAdaptRoleLinks(

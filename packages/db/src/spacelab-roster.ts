@@ -12,6 +12,7 @@ import {
 import type { Db } from "./client.js";
 import {
   spacelabAdaptRoleLinks,
+  spacelabGuildAdaptSettings,
   spacelabGuildRosterState,
 } from "./schema.js";
 
@@ -42,6 +43,36 @@ export async function listSpacelabAdaptRoleLinks(db: Db, guildId: string) {
   return db.query.spacelabAdaptRoleLinks.findMany({
     where: eq(spacelabAdaptRoleLinks.guildId, guildId),
   });
+}
+
+export async function getSpacelabGeneralMemberRoleId(
+  db: Db,
+  guildId: string,
+): Promise<string | null> {
+  const row = await db.query.spacelabGuildAdaptSettings.findFirst({
+    where: eq(spacelabGuildAdaptSettings.guildId, guildId),
+  });
+  return row?.generalMemberRoleId ?? null;
+}
+
+export async function setSpacelabGeneralMemberRoleId(
+  db: Db,
+  guildId: string,
+  generalMemberRoleId: string | null,
+) {
+  if (generalMemberRoleId === null) {
+    await db
+      .delete(spacelabGuildAdaptSettings)
+      .where(eq(spacelabGuildAdaptSettings.guildId, guildId));
+    return;
+  }
+  await db
+    .insert(spacelabGuildAdaptSettings)
+    .values({ guildId, generalMemberRoleId })
+    .onConflictDoUpdate({
+      target: spacelabGuildAdaptSettings.guildId,
+      set: { generalMemberRoleId },
+    });
 }
 
 export async function upsertSpacelabParsedRoster(

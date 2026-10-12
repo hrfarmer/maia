@@ -8,10 +8,12 @@ import type { Db } from "@maia/db";
 import {
   bumpSpacelabAdaptLinksRevision,
   clearSpacelabReconcileFailures,
+  getSpacelabGeneralMemberRoleId,
   getSpacelabGuildRosterState,
   ingestSpacelabLabRosterMessage,
   listSpacelabAdaptRoleLinks,
   setSpacelabAdaptRoleLink,
+  setSpacelabGeneralMemberRoleId,
   upsertSpacelabParsedRoster,
 } from "@maia/db";
 
@@ -24,6 +26,8 @@ export interface SpacelabAdaptRolesView {
   adaptRoleRows: SpacelabAdaptRoleRowView[];
   guildRoles: GuildRoleOption[];
   parsedAt: string | null;
+  generalMemberRoleId: string | null;
+  generalMemberRoleMissing: boolean;
 }
 
 export interface SpacelabRosterRepository {
@@ -38,6 +42,8 @@ export interface SpacelabRosterRepository {
   }): Promise<void>;
   getLinkedRoles(): Promise<Map<string, string>>;
   setLinkedRole(adaptValue: string, discordRoleId: string | null): Promise<void>;
+  getGeneralMemberRoleId?(): Promise<string | null>;
+  setGeneralMemberRoleId?(discordRoleId: string | null): Promise<void>;
   clearReconcileFailures?(): Promise<void>;
   bumpAdaptLinksRevision?(): Promise<void>;
 }
@@ -59,6 +65,12 @@ export function createDbSpacelabRosterRepository(
     },
     async setLinkedRole(adaptValue, discordRoleId) {
       await setSpacelabAdaptRoleLink(db, guildId, adaptValue, discordRoleId);
+    },
+    async getGeneralMemberRoleId() {
+      return getSpacelabGeneralMemberRoleId(db, guildId);
+    },
+    async setGeneralMemberRoleId(discordRoleId) {
+      await setSpacelabGeneralMemberRoleId(db, guildId, discordRoleId);
     },
     async clearReconcileFailures() {
       await clearSpacelabReconcileFailures(db, guildId);
@@ -89,9 +101,10 @@ export async function buildSpacelabAdaptRolesView(
   repo: SpacelabRosterRepository,
   guildRoles: GuildRoleOption[],
 ): Promise<SpacelabAdaptRolesView> {
-  const [parsed, linkedRoles] = await Promise.all([
+  const [parsed, linkedRoles, generalMemberRoleId] = await Promise.all([
     repo.getParsedRoster(),
     repo.getLinkedRoles(),
+    repo.getGeneralMemberRoleId?.() ?? Promise.resolve(null),
   ]);
   const guildRoleIds = new Set(guildRoles.map((role) => role.id));
   const adaptRoleRows = buildSpacelabAdaptRoleRows({
@@ -103,15 +116,23 @@ export async function buildSpacelabAdaptRolesView(
     adaptRoleRows,
     guildRoles: [...guildRoles].sort((a, b) => a.name.localeCompare(b.name)),
     parsedAt: parsed?.parsedAt.toISOString() ?? null,
+    generalMemberRoleId,
+    generalMemberRoleMissing: Boolean(
+      generalMemberRoleId && !guildRoleIds.has(generalMemberRoleId),
+    ),
   };
 }
 
 export async function saveSpacelabAdaptRoleLinks(
   repo: SpacelabRosterRepository,
   links: Record<string, string | null>,
+  generalMemberRoleId?: string | null,
 ) {
   for (const [adaptValue, discordRoleId] of Object.entries(links)) {
     await repo.setLinkedRole(adaptValue, discordRoleId);
+  }
+  if (generalMemberRoleId !== undefined) {
+    await repo.setGeneralMemberRoleId?.(generalMemberRoleId);
   }
   await repo.clearReconcileFailures?.();
   await repo.bumpAdaptLinksRevision?.();

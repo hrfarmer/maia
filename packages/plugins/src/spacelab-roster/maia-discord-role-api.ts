@@ -90,6 +90,7 @@ export interface SpacelabReconcileStateResponse {
     discordUserId?: string;
   }>;
   links: Record<string, string>;
+  generalMemberRoleId?: string | null;
   rememberedMembers: Array<{ discordUserId: string; discordHandle: string }>;
   failures: Array<{ memberKey: string; discordHandle: string; attempts: number }>;
 }

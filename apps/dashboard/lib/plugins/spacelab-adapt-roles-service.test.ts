@@ -22,6 +22,7 @@ function createMemoryRepository(): SpacelabRosterRepository & {
       parsedAt: Date;
     } | null,
     links: new Map<string, string>(),
+    generalMemberRoleId: null as string | null,
     failuresCleared: 0,
   };
   return {
@@ -43,6 +44,12 @@ function createMemoryRepository(): SpacelabRosterRepository & {
         return;
       }
       state.links.set(adaptValue, discordRoleId);
+    },
+    async getGeneralMemberRoleId() {
+      return state.generalMemberRoleId;
+    },
+    async setGeneralMemberRoleId(discordRoleId) {
+      state.generalMemberRoleId = discordRoleId;
     },
     async clearReconcileFailures() {
       state.failuresCleared += 1;
@@ -113,6 +120,23 @@ describe("spacelab adapt roles service", () => {
     await ingestSpacelabRosterMessage(repo, SYNTHETIC_LAB_ROSTER_EXPORT, "Subteam");
     await saveSpacelabAdaptRoleLinks(repo, { Alpha: "role-1" });
     assert.equal(repo.failuresCleared, 1);
+  });
+
+  it("round-trips the general member role through save and view", async () => {
+    const repo = createMemoryRepository();
+    await ingestSpacelabRosterMessage(repo, SYNTHETIC_LAB_ROSTER_EXPORT, "Subteam");
+    await saveSpacelabAdaptRoleLinks(repo, {}, "role-general");
+    let view = await buildSpacelabAdaptRolesView(repo, [
+      { id: "role-general", name: "All members" },
+    ]);
+    assert.equal(view.generalMemberRoleId, "role-general");
+    assert.equal(view.generalMemberRoleMissing, false);
+
+    await saveSpacelabAdaptRoleLinks(repo, {}, null);
+    view = await buildSpacelabAdaptRolesView(repo, [
+      { id: "role-general", name: "All members" },
+    ]);
+    assert.equal(view.generalMemberRoleId, null);
   });
 
   it("keeps a saved link when the value is missing from a later successful parse", async () => {
