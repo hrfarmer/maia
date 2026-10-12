@@ -33,4 +33,24 @@ describe("createGraphMailboxClient", () => {
     assert.equal(preferHeader, 'outlook.body-content-type="text"');
     assert.equal(messages[0]?.bodyContent, "DiscordHandle,Status,Subteam\na,Active,{}");
   });
+
+  it("requests from and sender fields and can filter by from address", async () => {
+    let requestUrl = "";
+    const client = createGraphMailboxClient({
+      baseUrl: "https://graph.example/v1.0",
+      fetchImpl: async (input) => {
+        requestUrl = String(input);
+        return new Response(JSON.stringify({ value: [] }), { status: 200 });
+      },
+    });
+
+    await client.listInboxMessages("token", {
+      fromAddress: "roster@lab.edu",
+    });
+    assert.match(requestUrl, /\$select=id,receivedDateTime,body,from,sender/);
+    assert.match(
+      requestUrl,
+      /\$filter=from\/emailAddress\/address eq 'roster@lab\.edu'/,
+    );
+  });
 });

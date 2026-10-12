@@ -9,6 +9,8 @@ import {
   buildSpacelabAdaptRolesView,
   ingestSpacelabRosterMessage,
   saveSpacelabAdaptRoleLinks,
+  parseRosterSenderEmailPatch,
+  saveSpacelabRosterSenderEmailSetting,
   type SpacelabRosterRepository,
 } from "./spacelab-adapt-roles-service.js";
 
@@ -24,6 +26,7 @@ function createMemoryRepository(): SpacelabRosterRepository & {
     } | null,
     links: new Map<string, string>(),
     generalMemberRoleId: null as string | null,
+    rosterSenderEmail: null as string | null,
     lastAppliedSnapshots: 0,
     failuresCleared: 0,
   };
@@ -52,6 +55,12 @@ function createMemoryRepository(): SpacelabRosterRepository & {
     },
     async setGeneralMemberRoleId(discordRoleId) {
       state.generalMemberRoleId = discordRoleId;
+    },
+    async getRosterSenderEmail() {
+      return state.rosterSenderEmail;
+    },
+    async setRosterSenderEmail(email) {
+      state.rosterSenderEmail = email;
     },
     async snapshotLastAppliedAdaptLinksBeforeChange() {
       state.lastAppliedSnapshots += 1;
@@ -135,6 +144,28 @@ describe("spacelab adapt roles service", () => {
     await ingestSpacelabRosterMessage(repo, SYNTHETIC_LAB_ROSTER_EXPORT, "Subteam");
     await saveSpacelabAdaptRoleLinks(repo, { Alpha: "role-1" });
     assert.equal(repo.failuresCleared, 1);
+  });
+
+  it("rejects invalid roster sender email on patch parse", () => {
+    assert.equal(parseRosterSenderEmailPatch("not-an-email").ok, false);
+    assert.deepEqual(parseRosterSenderEmailPatch(" roster@lab.edu "), {
+      ok: true,
+      email: "roster@lab.edu",
+    });
+    assert.deepEqual(parseRosterSenderEmailPatch(""), {
+      ok: true,
+      email: null,
+    });
+  });
+
+  it("round-trips roster sender email through save and view", async () => {
+    const repo = createMemoryRepository();
+    await saveSpacelabRosterSenderEmailSetting(repo, "roster@lab.edu");
+    let view = await buildSpacelabAdaptRolesView(repo, []);
+    assert.equal(view.rosterSenderEmail, "roster@lab.edu");
+    await saveSpacelabRosterSenderEmailSetting(repo, null);
+    view = await buildSpacelabAdaptRolesView(repo, []);
+    assert.equal(view.rosterSenderEmail, null);
   });
 
   it("round-trips the general member role through save and view", async () => {

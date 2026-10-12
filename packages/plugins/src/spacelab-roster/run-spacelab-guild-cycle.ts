@@ -7,11 +7,16 @@ import type { GraphMailboxClient, GraphMailboxMessage } from "./graph-mailbox.js
 import {
   fetchGuildMailboxAccessToken,
   fetchGuildRosterColumn,
+  fetchGuildRosterSenderEmail,
   fetchSpacelabCycleState,
   ingestSpacelabRosterMessageViaApi,
   saveSpacelabCycleState,
   type MaiaSpacelabPluginApiConfig,
 } from "./maia-spacelab-plugin-api.js";
+import {
+  resolveGraphMessageFromAddress,
+  rosterSenderEmailMatches,
+} from "./roster-sender-email.js";
 import { fetchSpacelabReconcileState } from "./maia-discord-role-api.js";
 import { runSpacelabGuildReconcile } from "./run-spacelab-reconcile.js";
 import type { SpacelabReconcilePassMode } from "./types.js";
@@ -55,6 +60,7 @@ function newestInboxMessage(
 function diagnoseNewestNonRosterInboxMessage(
   messages: GraphMailboxMessage[],
   rosterColumn: string,
+  rosterSenderEmail: string | null,
 ): string | undefined {
   if (messages.length === 0) {
     return undefined;
@@ -64,9 +70,33 @@ function diagnoseNewestNonRosterInboxMessage(
     return undefined;
   }
   if (isLabRosterExportMessage(newest.bodyContent, rosterColumn)) {
+    if (
+      rosterSenderEmail &&
+      !rosterSenderEmailMatches(
+        rosterSenderEmail,
+        resolveGraphMessageFromAddress(newest),
+      )
+    ) {
+      return "sender_mismatch";
+    }
     return undefined;
   }
   return labRosterNotRecognizedReason(newest.bodyContent, rosterColumn) ?? "not_roster";
+}
+
+function inboxMessagesForRosterSender(
+  messages: GraphMailboxMessage[],
+  rosterSenderEmail: string | null,
+): GraphMailboxMessage[] {
+  if (!rosterSenderEmail) {
+    return messages;
+  }
+  return messages.filter((message) =>
+    rosterSenderEmailMatches(
+      rosterSenderEmail,
+      resolveGraphMessageFromAddress(message),
+    ),
+  );
 }
 
 async function archiveMessages(
@@ -148,8 +178,16 @@ export async function runSpacelabGuildCycle(input: {
     return { ok: false, skippedReason: "no_roster_column" };
   }
 
+  const rosterSenderEmail = await fetchGuildRosterSenderEmail(config);
   const inboxMessages = await graph.listInboxMessages(accessToken);
-  const rosterMessages = rosterMessagesInInbox(inboxMessages, rosterColumn);
+  const senderFilteredInbox = inboxMessagesForRosterSender(
+    inboxMessages,
+    rosterSenderEmail,
+  );
+  const rosterMessages = rosterMessagesInInbox(
+    senderFilteredInbox,
+    rosterColumn,
+  );
   const newestRoster = rosterMessages[0];
   const reconcileState = await fetchSpacelabReconcileState(config);
   const savedRosterRowCount = reconcileState?.rows.length ?? 0;
@@ -164,7 +202,11 @@ export async function runSpacelabGuildCycle(input: {
   if (!hasNewRoster) {
     const notRosterReason =
       rosterMessages.length === 0
-        ? diagnoseNewestNonRosterInboxMessage(inboxMessages, rosterColumn)
+        ? diagnoseNewestNonRosterInboxMessage(
+            inboxMessages,
+            rosterColumn,
+            rosterSenderEmail,
+          )
         : undefined;
     if (input.forceFullPass || linksRevisionChanged) {
       const mode: SpacelabReconcilePassMode = { kind: "full" };

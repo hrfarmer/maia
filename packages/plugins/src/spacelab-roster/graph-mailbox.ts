@@ -2,11 +2,25 @@ export interface GraphMailboxMessage {
   id: string;
   receivedDateTime: string;
   bodyContent: string;
+  fromEmailAddress?: string;
+  senderEmailAddress?: string;
+}
+
+export interface GraphMailboxListInboxOptions {
+  /** When set, adds a Graph $filter on from address (exact match; client still normalizes). */
+  fromAddress?: string | null;
 }
 
 export interface GraphMailboxClient {
-  listInboxMessages(accessToken: string): Promise<GraphMailboxMessage[]>;
+  listInboxMessages(
+    accessToken: string,
+    options?: GraphMailboxListInboxOptions,
+  ): Promise<GraphMailboxMessage[]>;
   moveMessageToArchive(accessToken: string, messageId: string): Promise<void>;
+}
+
+function escapeODataString(value: string): string {
+  return value.replace(/'/g, "''");
 }
 
 export function resolveGraphBaseUrl(
@@ -46,9 +60,19 @@ export function createGraphMailboxClient(input: {
   }
 
   return {
-    async listInboxMessages(accessToken) {
+    async listInboxMessages(accessToken, options) {
+      const fromFilter = options?.fromAddress?.trim();
+      const queryParts = [
+        "$select=id,receivedDateTime,body,from,sender",
+        "$top=100",
+      ];
+      if (fromFilter) {
+        queryParts.push(
+          `$filter=from/emailAddress/address eq '${escapeODataString(fromFilter)}'`,
+        );
+      }
       const response = await fetchImpl(
-        `${baseUrl}/me/mailFolders/inbox/messages?$select=id,receivedDateTime,body&$top=100`,
+        `${baseUrl}/me/mailFolders/inbox/messages?${queryParts.join("&")}`,
         {
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -64,6 +88,8 @@ export function createGraphMailboxClient(input: {
           id?: string;
           receivedDateTime?: string;
           body?: { content?: string };
+          from?: { emailAddress?: { address?: string } };
+          sender?: { emailAddress?: { address?: string } };
         }>;
       };
       return (body.value ?? [])
@@ -72,6 +98,8 @@ export function createGraphMailboxClient(input: {
           id: item.id!,
           receivedDateTime: item.receivedDateTime!,
           bodyContent: item.body?.content ?? "",
+          fromEmailAddress: item.from?.emailAddress?.address,
+          senderEmailAddress: item.sender?.emailAddress?.address,
         }));
     },
     async moveMessageToArchive(accessToken, messageId) {

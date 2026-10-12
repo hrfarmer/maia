@@ -21,13 +21,20 @@ function rosterMessage(
   id: string,
   receivedDateTime: string,
   bodyContent: string,
+  fromEmailAddress?: string,
 ) {
-  return { id, receivedDateTime, bodyContent };
+  return {
+    id,
+    receivedDateTime,
+    bodyContent,
+    ...(fromEmailAddress ? { fromEmailAddress } : {}),
+  };
 }
 
 function createMaiaFetch(state: {
   cycle: SpacelabCycleState;
   rosterColumn: string;
+  rosterSenderEmail?: string | null;
   accessToken?: "ok" | "missing" | "refresh_failed";
   rosterRows?: unknown[];
   links?: Record<string, string>;
@@ -70,7 +77,13 @@ function createMaiaFetch(state: {
     }
 
     if (url.pathname === "/v1/guilds/guild-1/values") {
-      return new Response(JSON.stringify({ values: { ROSTER_COLUMN: state.rosterColumn } }), {
+      const values: Record<string, string> = {
+        ROSTER_COLUMN: state.rosterColumn,
+      };
+      if (state.rosterSenderEmail) {
+        values.ROSTER_SENDER_EMAIL = state.rosterSenderEmail;
+      }
+      return new Response(JSON.stringify({ values }), {
         status: 200,
       });
     }
@@ -765,6 +778,120 @@ describe("runSpacelabGuildCycle", () => {
     });
     assert.equal(memberRoleCalls.length, 0);
     assert.equal(cycle.lastError, "mailbox_not_connected");
+  });
+
+  it("processes roster mail from the configured sender", async () => {
+    const graph = new FakeGraphMailbox();
+    graph.inbox.push(
+      rosterMessage(
+        "roster-1",
+        "2026-01-02T00:00:00Z",
+        SYNTHETIC_LAB_ROSTER_EXPORT,
+        "roster@lab.edu",
+      ),
+    );
+    const cycle: SpacelabCycleState = {
+      lastCycleAt: null,
+      lastError: null,
+      lastParsedMessageId: null,
+      pendingArchiveMessageIds: [],
+      adaptLinksRevision: 0,
+      lastProcessedAdaptLinksRevision: 0,
+    };
+    const ingestCount = { value: 0 };
+    await runSpacelabGuildCycle({
+      config: {
+        pluginUrl: "http://127.0.0.1:9",
+        pluginToken: "token",
+        guildId: "guild-1",
+        fetchImpl: createMaiaFetch({
+          cycle,
+          rosterColumn: "Subteam",
+          rosterSenderEmail: " Roster@Lab.EDU ",
+          ingestCount,
+          links: { Alpha: "role-alpha" },
+        }),
+      },
+      graph,
+    });
+    assert.equal(ingestCount.value, 1);
+    assert.deepEqual(graph.archived, ["roster-1"]);
+  });
+
+  it("ignores roster mail from other senders without archiving", async () => {
+    const graph = new FakeGraphMailbox();
+    graph.inbox.push(
+      rosterMessage(
+        "wrong-sender",
+        "2026-01-02T00:00:00Z",
+        SYNTHETIC_LAB_ROSTER_EXPORT,
+        "other@lab.edu",
+      ),
+    );
+    const cycle: SpacelabCycleState = {
+      lastCycleAt: null,
+      lastError: null,
+      lastParsedMessageId: null,
+      pendingArchiveMessageIds: [],
+      adaptLinksRevision: 0,
+      lastProcessedAdaptLinksRevision: 0,
+    };
+    const ingestCount = { value: 0 };
+    const result = await runSpacelabGuildCycle({
+      config: {
+        pluginUrl: "http://127.0.0.1:9",
+        pluginToken: "token",
+        guildId: "guild-1",
+        fetchImpl: createMaiaFetch({
+          cycle,
+          rosterColumn: "Subteam",
+          rosterSenderEmail: "roster@lab.edu",
+          ingestCount,
+        }),
+      },
+      graph,
+    });
+    assert.equal(ingestCount.value, 0);
+    assert.deepEqual(graph.archived, []);
+    assert.deepEqual(graph.inbox.map((message) => message.id), ["wrong-sender"]);
+    assert.equal(result.notRosterReason, "sender_mismatch");
+  });
+
+  it("accepts roster mail from any sender when roster sender is unset", async () => {
+    const graph = new FakeGraphMailbox();
+    graph.inbox.push(
+      rosterMessage(
+        "any-sender",
+        "2026-01-02T00:00:00Z",
+        SYNTHETIC_LAB_ROSTER_EXPORT,
+        "anyone@example.com",
+      ),
+    );
+    const cycle: SpacelabCycleState = {
+      lastCycleAt: null,
+      lastError: null,
+      lastParsedMessageId: null,
+      pendingArchiveMessageIds: [],
+      adaptLinksRevision: 0,
+      lastProcessedAdaptLinksRevision: 0,
+    };
+    const ingestCount = { value: 0 };
+    await runSpacelabGuildCycle({
+      config: {
+        pluginUrl: "http://127.0.0.1:9",
+        pluginToken: "token",
+        guildId: "guild-1",
+        fetchImpl: createMaiaFetch({
+          cycle,
+          rosterColumn: "Subteam",
+          ingestCount,
+          links: { Alpha: "role-alpha" },
+        }),
+      },
+      graph,
+    });
+    assert.equal(ingestCount.value, 1);
+    assert.deepEqual(graph.archived, ["any-sender"]);
   });
 
   it("skips cycles for disabled guilds without calling Discord role APIs", async () => {

@@ -55,6 +55,30 @@ export async function getSpacelabGeneralMemberRoleId(
   return row?.generalMemberRoleId ?? null;
 }
 
+export async function getSpacelabRosterSenderEmail(
+  db: Db,
+  guildId: string,
+): Promise<string | null> {
+  const row = await db.query.spacelabGuildAdaptSettings.findFirst({
+    where: eq(spacelabGuildAdaptSettings.guildId, guildId),
+  });
+  return row?.rosterSenderEmail ?? null;
+}
+
+export async function setSpacelabRosterSenderEmail(
+  db: Db,
+  guildId: string,
+  rosterSenderEmail: string | null,
+) {
+  await db
+    .insert(spacelabGuildAdaptSettings)
+    .values({ guildId, rosterSenderEmail })
+    .onConflictDoUpdate({
+      target: spacelabGuildAdaptSettings.guildId,
+      set: { rosterSenderEmail },
+    });
+}
+
 export async function setSpacelabGeneralMemberRoleId(
   db: Db,
   guildId: string,
