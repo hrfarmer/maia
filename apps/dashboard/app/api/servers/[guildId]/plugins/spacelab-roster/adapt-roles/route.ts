@@ -10,12 +10,15 @@ import { jsonError } from "@/lib/api/http";
 import {
   buildSpacelabAdaptRolesView,
   createDbSpacelabRosterRepository,
+  parseRosterSenderEmailPatch,
   saveSpacelabAdaptRoleLinks,
+  saveSpacelabRosterSenderEmailSetting,
 } from "@/lib/plugins/spacelab-adapt-roles-service";
 import {
   getDevSpacelabAdaptRolesView,
   patchDevSpacelabAdaptRoleLinks,
   patchDevSpacelabGeneralMemberRoleId,
+  patchDevSpacelabRosterSenderEmail,
 } from "@/lib/dev-spacelab-adapt-roles";
 import { DEV_GUILD_ID, devHelpersEnabled } from "@/lib/dev-fixtures";
 import { listRolesForGuild } from "@/lib/moderation/service";
@@ -84,8 +87,13 @@ export async function PATCH(request: Request, context: RouteContext) {
       : null;
   const generalMemberRoleIdRaw = record.generalMemberRoleId;
   const hasGeneralMemberRoleId = "generalMemberRoleId" in record;
-  if (!links && !hasGeneralMemberRoleId) {
-    return jsonError("Expected links and/or generalMemberRoleId", 400);
+  const rosterSenderEmailRaw = record.rosterSenderEmail;
+  const hasRosterSenderEmail = "rosterSenderEmail" in record;
+  if (!links && !hasGeneralMemberRoleId && !hasRosterSenderEmail) {
+    return jsonError(
+      "Expected links, generalMemberRoleId, and/or rosterSenderEmail",
+      400,
+    );
   }
 
   const normalized: Record<string, string | null> = {};
@@ -116,6 +124,15 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
   }
 
+  let rosterSenderEmail: string | null | undefined;
+  if (hasRosterSenderEmail) {
+    const parsedSender = parseRosterSenderEmailPatch(rosterSenderEmailRaw);
+    if (!parsedSender.ok) {
+      return jsonError("Invalid rosterSenderEmail", 400);
+    }
+    rosterSenderEmail = parsedSender.email;
+  }
+
   if (devHelpersEnabled() && guildId === DEV_GUILD_ID) {
     if (links) {
       patchDevSpacelabAdaptRoleLinks(normalized);
@@ -123,21 +140,27 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (hasGeneralMemberRoleId) {
       patchDevSpacelabGeneralMemberRoleId(generalMemberRoleId ?? null);
     }
+    if (hasRosterSenderEmail) {
+      patchDevSpacelabRosterSenderEmail(rosterSenderEmail ?? null);
+    }
     return NextResponse.json(getDevSpacelabAdaptRolesView());
   }
 
   const db = getDb();
-  const envRows = await listGuildPluginEnvValues(
-    db,
-    guildId,
-    SPACELAB_ROSTER_PLUGIN_ID,
-  );
-  const rosterColumn = envRows.find((row) => row.envKey === "ROSTER_COLUMN")?.value;
-  if (!rosterColumn) {
-    return jsonError("ROSTER_COLUMN is not configured", 400);
-  }
-
   const repo = createDbSpacelabRosterRepository(db, guildId);
+
+  if (links || hasGeneralMemberRoleId) {
+    const envRows = await listGuildPluginEnvValues(
+      db,
+      guildId,
+      SPACELAB_ROSTER_PLUGIN_ID,
+    );
+    const rosterColumn = envRows.find((row) => row.envKey === "ROSTER_COLUMN")
+      ?.value;
+    if (!rosterColumn) {
+      return jsonError("ROSTER_COLUMN is not configured", 400);
+    }
+  }
   const guildRoles = await listRolesForGuild(guildId);
   const allowedRoleIds = new Set(guildRoles.map((role) => role.id));
   for (const roleId of Object.values(normalized)) {
@@ -152,15 +175,23 @@ export async function PATCH(request: Request, context: RouteContext) {
     return jsonError("Role is not in this guild", 400);
   }
 
-  await saveSpacelabAdaptRoleLinks(
-    repo,
-    normalized,
-    hasGeneralMemberRoleId ? (generalMemberRoleId ?? null) : undefined,
-  );
+  if (links || hasGeneralMemberRoleId) {
+    await saveSpacelabAdaptRoleLinks(
+      repo,
+      normalized,
+      hasGeneralMemberRoleId ? (generalMemberRoleId ?? null) : undefined,
+    );
+  }
+  if (hasRosterSenderEmail) {
+    await saveSpacelabRosterSenderEmailSetting(
+      repo,
+      rosterSenderEmail ?? null,
+    );
+  }
   await enqueuePluginGuildConfigNotification(db, {
     pluginId: SPACELAB_ROSTER_PLUGIN_ID,
     guildId,
-    changeType: "adapt_roles_saved",
+    changeType: hasRosterSenderEmail ? "values_saved" : "adapt_roles_saved",
   });
   const view = await buildSpacelabAdaptRolesView(
     repo,

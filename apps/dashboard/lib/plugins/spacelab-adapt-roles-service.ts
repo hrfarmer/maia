@@ -1,6 +1,8 @@
 import {
   buildSpacelabAdaptRoleRows,
+  isValidRosterSenderEmail,
   parseLabRosterMessage,
+  trimRosterSenderEmail,
   type ParsedRosterRow,
   type SpacelabAdaptRoleRowView,
 } from "@maia/plugins";
@@ -11,11 +13,13 @@ import {
   getSpacelabForceSyncState,
   getSpacelabGeneralMemberRoleId,
   getSpacelabGuildRosterState,
+  getSpacelabRosterSenderEmail,
   queueSpacelabForceSync,
   ingestSpacelabLabRosterMessage,
   listSpacelabAdaptRoleLinks,
   setSpacelabAdaptRoleLink,
   setSpacelabGeneralMemberRoleId,
+  setSpacelabRosterSenderEmail,
   setSpacelabLastAppliedAdaptLinks,
   upsertSpacelabParsedRoster,
 } from "@maia/db";
@@ -39,6 +43,7 @@ export interface SpacelabAdaptRolesView {
   parsedAt: string | null;
   generalMemberRoleId: string | null;
   generalMemberRoleMissing: boolean;
+  rosterSenderEmail: string | null;
   forceSync: SpacelabForceSyncView;
 }
 
@@ -56,6 +61,8 @@ export interface SpacelabRosterRepository {
   setLinkedRole(adaptValue: string, discordRoleId: string | null): Promise<void>;
   getGeneralMemberRoleId?(): Promise<string | null>;
   setGeneralMemberRoleId?(discordRoleId: string | null): Promise<void>;
+  getRosterSenderEmail?(): Promise<string | null>;
+  setRosterSenderEmail?(email: string | null): Promise<void>;
   snapshotLastAppliedAdaptLinksBeforeChange?(): Promise<void>;
   getForceSyncState?(): Promise<import("@maia/db").SpacelabForceSyncState>;
   clearReconcileFailures?(): Promise<void>;
@@ -85,6 +92,12 @@ export function createDbSpacelabRosterRepository(
     },
     async setGeneralMemberRoleId(discordRoleId) {
       await setSpacelabGeneralMemberRoleId(db, guildId, discordRoleId);
+    },
+    async getRosterSenderEmail() {
+      return getSpacelabRosterSenderEmail(db, guildId);
+    },
+    async setRosterSenderEmail(email) {
+      await setSpacelabRosterSenderEmail(db, guildId, email);
     },
     async snapshotLastAppliedAdaptLinksBeforeChange() {
       const [linkRows, generalMemberRoleId] = await Promise.all([
@@ -130,11 +143,12 @@ export async function buildSpacelabAdaptRolesView(
   repo: SpacelabRosterRepository,
   guildRoles: GuildRoleOption[],
 ): Promise<SpacelabAdaptRolesView> {
-  const [parsed, linkedRoles, generalMemberRoleId, forceSyncState] =
+  const [parsed, linkedRoles, generalMemberRoleId, rosterSenderEmail, forceSyncState] =
     await Promise.all([
       repo.getParsedRoster(),
       repo.getLinkedRoles(),
       repo.getGeneralMemberRoleId?.() ?? Promise.resolve(null),
+      repo.getRosterSenderEmail?.() ?? Promise.resolve(null),
       repo.getForceSyncState?.() ??
         Promise.resolve({
           forceSyncPending: false,
@@ -158,6 +172,7 @@ export async function buildSpacelabAdaptRolesView(
     generalMemberRoleMissing: Boolean(
       generalMemberRoleId && !guildRoleIds.has(generalMemberRoleId),
     ),
+    rosterSenderEmail,
     forceSync: {
       pending: forceSyncState.forceSyncPending,
       requestedAt: forceSyncState.lastForceSyncRequestedAt?.toISOString() ?? null,
@@ -171,6 +186,32 @@ export async function buildSpacelabAdaptRolesView(
 
 export async function queueSpacelabAdaptForceSync(db: Db, guildId: string) {
   await queueSpacelabForceSync(db, guildId);
+}
+
+export async function saveSpacelabRosterSenderEmailSetting(
+  repo: SpacelabRosterRepository,
+  rosterSenderEmail: string | null,
+) {
+  await repo.setRosterSenderEmail?.(rosterSenderEmail);
+}
+
+export function parseRosterSenderEmailPatch(
+  raw: unknown,
+): { ok: true; email: string | null } | { ok: false } {
+  if (raw === null) {
+    return { ok: true, email: null };
+  }
+  if (typeof raw !== "string") {
+    return { ok: false };
+  }
+  const trimmed = trimRosterSenderEmail(raw);
+  if (trimmed === "") {
+    return { ok: true, email: null };
+  }
+  if (!isValidRosterSenderEmail(trimmed)) {
+    return { ok: false };
+  }
+  return { ok: true, email: trimmed };
 }
 
 export async function saveSpacelabAdaptRoleLinks(

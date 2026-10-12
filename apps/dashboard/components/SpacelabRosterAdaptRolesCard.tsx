@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -49,6 +50,7 @@ interface AdaptRolesView {
   parsedAt: string | null;
   generalMemberRoleId: string | null;
   generalMemberRoleMissing: boolean;
+  rosterSenderEmail: string | null;
   forceSync: ForceSyncView;
 }
 
@@ -62,6 +64,7 @@ export function SpacelabRosterAdaptRolesCard({
   guildId,
 }: SpacelabRosterAdaptRolesCardProps) {
   const [view, setView] = useState<AdaptRolesView | null>(null);
+  const [rosterSenderDraft, setRosterSenderDraft] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [forceSyncOpen, setForceSyncOpen] = useState(false);
@@ -76,6 +79,7 @@ export function SpacelabRosterAdaptRolesCard({
     }
     const data = (await res.json()) as AdaptRolesView;
     setView(data);
+    setRosterSenderDraft(data.rosterSenderEmail ?? "");
     setStatus(null);
   }, [guildId]);
 
@@ -112,6 +116,11 @@ export function SpacelabRosterAdaptRolesCard({
 
   async function saveGeneralMemberRole(discordRoleId: string | null) {
     await patchSettings({ generalMemberRoleId: discordRoleId });
+  }
+
+  async function saveRosterSenderEmail() {
+    const trimmed = rosterSenderDraft.trim();
+    await patchSettings({ rosterSenderEmail: trimmed === "" ? null : trimmed });
   }
 
   async function requestForceSync() {
@@ -205,6 +214,37 @@ export function SpacelabRosterAdaptRolesCard({
     );
   }
 
+  const rosterSenderField = (
+    <div
+      className="flex flex-col gap-2 sm:flex-row sm:items-end"
+      data-testid="spacelab-roster-sender"
+    >
+      <div className="min-w-0 flex-1 space-y-2">
+        <Label htmlFor="spacelab-roster-sender-input">Roster sender</Label>
+        <Input
+          id="spacelab-roster-sender-input"
+          type="email"
+          className="rounded-sm"
+          disabled={busy}
+          value={rosterSenderDraft}
+          onChange={(event) => setRosterSenderDraft(event.target.value)}
+          autoComplete="email"
+        />
+      </div>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className="w-full rounded-sm sm:w-auto"
+        disabled={busy}
+        data-testid="spacelab-roster-sender-save"
+        onClick={() => void saveRosterSenderEmail()}
+      >
+        Save
+      </Button>
+    </div>
+  );
+
   const generalMemberRoleField = (
     <div
       className="flex flex-col gap-2 rounded-sm border p-3 sm:flex-row sm:items-center sm:justify-between"
@@ -259,6 +299,7 @@ export function SpacelabRosterAdaptRolesCard({
             {status}
           </p>
         ) : null}
+        {rosterSenderField}
         {generalMemberRoleField}
         {forceSyncControls}
         <p className="text-sm text-muted-foreground">No roster values yet.</p>
@@ -283,6 +324,7 @@ export function SpacelabRosterAdaptRolesCard({
         </p>
       ) : null}
 
+      {rosterSenderField}
       {generalMemberRoleField}
       {forceSyncControls}
 

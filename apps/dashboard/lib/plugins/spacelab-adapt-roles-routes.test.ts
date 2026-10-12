@@ -4,6 +4,7 @@ import {
   getDevSpacelabAdaptRolesView,
   patchDevSpacelabAdaptRoleLinks,
   patchDevSpacelabGeneralMemberRoleId,
+  patchDevSpacelabRosterSenderEmail,
 } from "@/lib/dev-spacelab-adapt-roles";
 
 describe("spacelab adapt roles dev routes seam", () => {
@@ -24,5 +25,11 @@ describe("spacelab adapt roles dev routes seam", () => {
     patchDevSpacelabGeneralMemberRoleId("222222222222222222");
     const view = getDevSpacelabAdaptRolesView();
     assert.equal(view.generalMemberRoleId, "222222222222222222");
+  });
+
+  it("persists roster sender email in the dev adapt roles view", () => {
+    patchDevSpacelabRosterSenderEmail("roster@lab.edu");
+    const view = getDevSpacelabAdaptRolesView();
+    assert.equal(view.rosterSenderEmail, "roster@lab.edu");
   });
 });

@@ -51,6 +51,26 @@ export async function fetchGuildMailboxAccessToken(
 export async function fetchGuildRosterColumn(
   config: MaiaSpacelabPluginApiConfig,
 ): Promise<string | null> {
+  const values = await fetchGuildPluginValues(config);
+  const column = values?.ROSTER_COLUMN;
+  return typeof column === "string" && column.length > 0 ? column : null;
+}
+
+export async function fetchGuildRosterSenderEmail(
+  config: MaiaSpacelabPluginApiConfig,
+): Promise<string | null> {
+  const values = await fetchGuildPluginValues(config);
+  const sender = values?.ROSTER_SENDER_EMAIL;
+  if (typeof sender !== "string") {
+    return null;
+  }
+  const trimmed = sender.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+async function fetchGuildPluginValues(
+  config: MaiaSpacelabPluginApiConfig,
+): Promise<Record<string, string> | null> {
   const fetchImpl = config.fetchImpl ?? fetch;
   const response = await fetchImpl(
     `${config.pluginUrl}/v1/guilds/${encodeURIComponent(config.guildId)}/values`,
@@ -60,8 +80,7 @@ export async function fetchGuildRosterColumn(
     return null;
   }
   const body = (await response.json()) as { values?: Record<string, string> };
-  const column = body.values?.ROSTER_COLUMN;
-  return typeof column === "string" && column.length > 0 ? column : null;
+  return body.values ?? null;
 }
 
 export async function fetchSpacelabCycleState(

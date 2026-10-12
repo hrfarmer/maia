@@ -10,6 +10,7 @@ const devState = {
   adaptValues: [] as string[],
   links: new Map<string, string>(),
   generalMemberRoleId: null as string | null,
+  rosterSenderEmail: null as string | null,
   parsedAt: null as string | null,
 };
 
@@ -41,6 +42,7 @@ export function getDevSpacelabAdaptRolesView(): SpacelabAdaptRolesView {
       devState.generalMemberRoleId &&
         !guildRoleIds.has(devState.generalMemberRoleId),
     ),
+    rosterSenderEmail: devState.rosterSenderEmail,
     forceSync: {
       pending: false,
       requestedAt: null,
@@ -55,6 +57,12 @@ export function patchDevSpacelabGeneralMemberRoleId(
   generalMemberRoleId: string | null,
 ) {
   devState.generalMemberRoleId = generalMemberRoleId;
+}
+
+export function patchDevSpacelabRosterSenderEmail(
+  rosterSenderEmail: string | null,
+) {
+  devState.rosterSenderEmail = rosterSenderEmail;
 }
 
 export function patchDevSpacelabAdaptRoleLinks(

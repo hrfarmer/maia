@@ -1,4 +1,10 @@
-import { getGuildPluginSettings, listGuildPluginEnvValues, type Db } from "@maia/db";
+import {
+  getGuildPluginSettings,
+  getSpacelabRosterSenderEmail,
+  listGuildPluginEnvValues,
+  type Db,
+} from "@maia/db";
+import { SPACELAB_ROSTER_PLUGIN_ID } from "@maia/plugins";
 import type { PluginTokenRegistry, RegisteredPluginToken } from "./token-registry.js";
 
 export type PluginApiForbiddenReason =
@@ -63,6 +69,12 @@ export async function loadGuildPluginValuesForApi(
   const values: Record<string, string> = {};
   for (const row of rows) {
     values[row.envKey] = row.value;
+  }
+  if (pluginId === SPACELAB_ROSTER_PLUGIN_ID) {
+    const rosterSenderEmail = await getSpacelabRosterSenderEmail(db, guildId);
+    if (rosterSenderEmail) {
+      values.ROSTER_SENDER_EMAIL = rosterSenderEmail;
+    }
   }
   return values;
 }

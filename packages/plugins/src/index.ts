@@ -105,6 +105,12 @@ export {
   type GraphMailboxMessage,
 } from "./spacelab-roster/graph-mailbox.js";
 export {
+  isValidRosterSenderEmail,
+  normalizeRosterSenderEmailForCompare,
+  rosterSenderEmailMatches,
+  trimRosterSenderEmail,
+} from "./spacelab-roster/roster-sender-email.js";
+export {
   SYNTHETIC_LAB_ROSTER_EXPORT,
   SYNTHETIC_LAB_ROSTER_EXPORT_CSV,
   SYNTHETIC_LAB_ROSTER_EXPORT_INVALID_ROW,

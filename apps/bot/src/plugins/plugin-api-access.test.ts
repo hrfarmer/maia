@@ -1,55 +1,31 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { Db } from "@maia/db";
-import {
-  classifyPluginApiForbidden,
-  resolvePluginTokenForGuild,
-} from "./plugin-api-access.js";
-import { PluginTokenRegistry } from "./token-registry.js";
+import { loadGuildPluginValuesForApi } from "./plugin-api-access.js";
 
-function mockDb(enabled: boolean | null): Db {
-  return {
-    query: {
-      guildPluginSettings: {
-        findFirst: async () =>
-          enabled === null ? undefined : { enabled },
+describe("loadGuildPluginValuesForApi", () => {
+  it("includes roster sender email for Space Lab roster guild values", async () => {
+    const db = {
+      query: {
+        guildPluginEnvValues: {
+          findMany: async () => [
+            { envKey: "ROSTER_COLUMN", value: "Subteam" },
+          ],
+        },
+        spacelabGuildAdaptSettings: {
+          findFirst: async () => ({
+            rosterSenderEmail: "roster@lab.edu",
+          }),
+        },
       },
-    },
-  } as unknown as Db;
-}
+    } as unknown as Db;
 
-describe("resolvePluginTokenForGuild", () => {
-  it("accepts always-on tokens only for enabled guilds", async () => {
-    const registry = new PluginTokenRegistry();
-    const token = registry.mintAlwaysOnToken("demo");
-
-    const enabled = await resolvePluginTokenForGuild(
-      mockDb(true),
-      registry,
-      token,
-      "guild-a",
+    const values = await loadGuildPluginValuesForApi(
+      db,
+      "guild-1",
+      "spacelab-roster",
     );
-    assert.ok(enabled);
-
-    const disabled = await resolvePluginTokenForGuild(
-      mockDb(false),
-      registry,
-      token,
-      "guild-b",
-    );
-    assert.equal(disabled, null);
-  });
-
-  it("classifies revoked always-on tokens", async () => {
-    const registry = new PluginTokenRegistry();
-    const token = registry.mintAlwaysOnToken("demo");
-    registry.revoke(token);
-    const reason = await classifyPluginApiForbidden(
-      mockDb(true),
-      registry,
-      token,
-      "guild-a",
-    );
-    assert.equal(reason, "revoked_token");
+    assert.equal(values.ROSTER_COLUMN, "Subteam");
+    assert.equal(values.ROSTER_SENDER_EMAIL, "roster@lab.edu");
   });
 });

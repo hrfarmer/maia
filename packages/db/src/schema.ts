@@ -232,6 +232,7 @@ export const spacelabGuildAdaptSettings = pgTable(
     }),
     lastForceSyncOk: boolean("last_force_sync_ok"),
     lastForceSyncError: text("last_force_sync_error"),
+    rosterSenderEmail: text("roster_sender_email"),
   },
 );
 
