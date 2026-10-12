@@ -11,7 +11,7 @@ export const MAX_CONSECUTIVE_DISCORD_ERRORS = 3;
 
 export interface DiscordRoleApi {
   listGuildRoleIds(): Promise<Set<string>>;
-  searchMembersByHandle(handle: string): Promise<Array<{ id: string; username: string }>>;
+  listGuildMembers(): Promise<Array<{ id: string; username: string }>>;
   getMemberRoleIds(userId: string): Promise<string[]>;
   addRole(userId: string, roleId: string): Promise<void>;
   removeRole(userId: string, roleId: string): Promise<void>;
@@ -61,16 +61,62 @@ export function desiredLinkedRoleIdsForValues(
   return desired;
 }
 
+export function memberMatchesRosterHandle(
+  username: string,
+  discordHandle: string,
+): boolean {
+  const compare = (a: string, b: string) =>
+    a.localeCompare(b, undefined, { sensitivity: "accent" }) === 0;
+  const handleLower = discordHandle.toLowerCase();
+  const userLower = username.toLowerCase();
+  if (compare(userLower, handleLower)) {
+    return true;
+  }
+  const hash = discordHandle.indexOf("#");
+  if (hash >= 0) {
+    return compare(userLower, discordHandle.slice(0, hash).toLowerCase());
+  }
+  return false;
+}
+
 export function exactUsernameMatches(
   members: Array<{ id: string; username: string }>,
   discordHandle: string,
 ): Array<{ id: string; username: string }> {
-  return members.filter(
-    (member) =>
-      member.username.localeCompare(discordHandle, undefined, {
-        sensitivity: "accent",
-      }) === 0,
+  return members.filter((member) =>
+    memberMatchesRosterHandle(member.username, discordHandle),
   );
+}
+
+export function buildGuildMemberLookupIndex(
+  members: Array<{ id: string; username: string }>,
+): Map<string, Array<{ id: string; username: string }>> {
+  const index = new Map<string, Array<{ id: string; username: string }>>();
+  for (const member of members) {
+    const key = member.username.toLowerCase();
+    const bucket = index.get(key) ?? [];
+    bucket.push(member);
+    index.set(key, bucket);
+  }
+  return index;
+}
+
+function lookupMembersByRosterHandle(
+  index: Map<string, Array<{ id: string; username: string }>>,
+  discordHandle: string,
+): Array<{ id: string; username: string }> {
+  const keys = new Set<string>([discordHandle.toLowerCase()]);
+  const hash = discordHandle.indexOf("#");
+  if (hash >= 0) {
+    keys.add(discordHandle.slice(0, hash).toLowerCase());
+  }
+  const byId = new Map<string, { id: string; username: string }>();
+  for (const key of keys) {
+    for (const member of index.get(key) ?? []) {
+      byId.set(member.id, member);
+    }
+  }
+  return [...byId.values()];
 }
 
 function failureKeyForMember(
@@ -263,6 +309,31 @@ export async function runReconcilePass(
   const managedRoleIds = buildManagedLinkedRoleIds(input.links, guildRoleIds);
   const workItems = buildWorkItems({ ...input, guildRoleIds });
 
+  let memberLookup = new Map<
+    string,
+    Array<{ id: string; username: string }>
+  >();
+  let memberListUnavailable = false;
+  const needsHandleLookup = workItems.some((item) => {
+    const storedUserId = storedUserIdForHandle(
+      item.discordHandle,
+      input.rows,
+      input.rememberedMembers,
+    );
+    return !(item.discordUserId ?? storedUserId);
+  });
+  if (needsHandleLookup) {
+    try {
+      const guildMembers = await api.listGuildMembers();
+      memberLookup = buildGuildMemberLookupIndex(guildMembers);
+    } catch (error) {
+      if (!isDiscordError(error)) {
+        throw error;
+      }
+      memberListUnavailable = true;
+    }
+  }
+
   let rows = input.rows.map((row) => ({ ...row }));
   let rememberedMembers = [...input.rememberedMembers];
   let failures = [...input.failures];
@@ -290,8 +361,14 @@ export async function runReconcilePass(
     );
     let userId = item.discordUserId ?? storedUserId;
     if (!userId) {
-      const searchResults = await api.searchMembersByHandle(item.discordHandle);
-      const matches = exactUsernameMatches(searchResults, item.discordHandle);
+      if (memberListUnavailable) {
+        continue;
+      }
+      const candidates = lookupMembersByRosterHandle(
+        memberLookup,
+        item.discordHandle,
+      );
+      const matches = exactUsernameMatches(candidates, item.discordHandle);
       if (matches.length !== 1) {
         continue;
       }

@@ -148,10 +148,10 @@ describe("Space Lab roster always-on process", () => {
         moderationCreateRole: async () => ({ ok: true, role: { id: "x", name: "x", color: 0, managed: false, position: 0, hoist: false, mentionable: false } }),
         moderationUpdateRole: async () => ({ ok: true, role: { id: "x", name: "x", color: 0, managed: false, position: 0 } }),
         moderationDeleteRole: async () => ({ ok: true }),
-        searchGuildMembersForModeration: async (_guildId, query) =>
-          query === "user.a"
-            ? [{ user: { id: "uid-a", username: "user.a" }, roles: [] }]
-            : [],
+        listGuildMembersForModeration: async () => [
+          { user: { id: "uid-a", username: "user.a" }, roles: [] },
+        ],
+        searchGuildMembersForModeration: async () => [],
         getMemberRoleIds: async () => [],
         moderationSetRoles: async () => {
           throw new Error("replace-all roles must not be called");

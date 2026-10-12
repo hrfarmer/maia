@@ -35,6 +35,7 @@ function mockHandlers(
       },
     }),
     moderationDeleteRole: async () => ({ ok: true }),
+    listGuildMembersForModeration: async () => [],
     searchGuildMembersForModeration: async () => [],
     getMemberRoleIds: async () => [],
     moderationSetRoles: async () => {

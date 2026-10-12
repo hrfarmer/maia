@@ -28,13 +28,12 @@ export function createMaiaDiscordRoleApi(
       const body = (await response.json()) as { roles?: Array<{ id: string }> };
       return new Set((body.roles ?? []).map((role) => role.id));
     },
-    async searchMembersByHandle(handle) {
-      const response = await fetchImpl(
-        `${base}/members?query=${encodeURIComponent(handle)}`,
-        { headers: authHeaders(config.pluginToken) },
-      );
+    async listGuildMembers() {
+      const response = await fetchImpl(`${base}/members`, {
+        headers: authHeaders(config.pluginToken),
+      });
       if (!response.ok) {
-        throw new Error(`member search failed: ${response.status}`);
+        throw new Error(`list members failed: ${response.status}`);
       }
       const body = (await response.json()) as {
         members?: Array<{ user?: { id?: string; username?: string } }>;

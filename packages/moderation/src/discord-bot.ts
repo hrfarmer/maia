@@ -30,37 +30,76 @@ export async function getBotUserId(): Promise<string> {
   return data.id;
 }
 
+const DISCORD_FETCH_MAX_ATTEMPTS = 4;
+const DISCORD_FETCH_MAX_RETRY_WAIT_MS = 10_000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function retryAfterMs(
+  response: Response,
+  body: { retry_after?: number },
+): number {
+  if (typeof body.retry_after === "number" && Number.isFinite(body.retry_after)) {
+    return Math.min(body.retry_after * 1000, DISCORD_FETCH_MAX_RETRY_WAIT_MS);
+  }
+  const header =
+    response.headers.get("Retry-After") ??
+    response.headers.get("X-RateLimit-Reset-After");
+  if (header) {
+    const seconds = Number(header);
+    if (Number.isFinite(seconds)) {
+      return Math.min(seconds * 1000, DISCORD_FETCH_MAX_RETRY_WAIT_MS);
+    }
+  }
+  return 1000;
+}
+
 export async function discordFetch<T>(
   path: string,
   init: RequestInit = {},
 ): Promise<T> {
-  const response = await fetch(`${DISCORD_API}${path}`, {
-    ...init,
-    headers: {
-      Authorization: `Bot ${getBotToken()}`,
-      "Content-Type": "application/json",
-      ...init.headers,
-    },
-  });
+  for (let attempt = 0; attempt < DISCORD_FETCH_MAX_ATTEMPTS; attempt += 1) {
+    const response = await fetch(`${DISCORD_API}${path}`, {
+      ...init,
+      headers: {
+        Authorization: `Bot ${getBotToken()}`,
+        "Content-Type": "application/json",
+        ...init.headers,
+      },
+    });
 
-  if (response.status === 204) {
-    return undefined as T;
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
+    const body = (await response.json().catch(() => ({}))) as {
+      message?: string;
+      code?: number;
+      retry_after?: number;
+    };
+
+    if (
+      response.status === 429 &&
+      attempt < DISCORD_FETCH_MAX_ATTEMPTS - 1
+    ) {
+      await sleep(retryAfterMs(response, body));
+      continue;
+    }
+
+    if (!response.ok) {
+      throw new DiscordApiError(
+        body.message ?? `Discord API ${response.status}`,
+        response.status,
+        body.code,
+      );
+    }
+
+    return body as T;
   }
 
-  const body = (await response.json().catch(() => ({}))) as {
-    message?: string;
-    code?: number;
-  };
-
-  if (!response.ok) {
-    throw new DiscordApiError(
-      body.message ?? `Discord API ${response.status}`,
-      response.status,
-      body.code,
-    );
-  }
-
-  return body as T;
+  throw new DiscordApiError("Discord API rate limited", 429);
 }
 
 export interface DiscordGuild {
@@ -198,6 +237,32 @@ export async function searchGuildMembers(
   return discordFetch<DiscordGuildMember[]>(
     `/guilds/${guildId}/members/search?${params.toString()}`,
   );
+}
+
+export async function listAllGuildMembers(
+  guildId: string,
+): Promise<DiscordGuildMember[]> {
+  const all: DiscordGuildMember[] = [];
+  let after: string | undefined;
+  for (;;) {
+    const params = new URLSearchParams({ limit: "1000" });
+    if (after) {
+      params.set("after", after);
+    }
+    const page = await discordFetch<DiscordGuildMember[]>(
+      `/guilds/${guildId}/members?${params.toString()}`,
+    );
+    all.push(...page);
+    if (page.length < 1000) {
+      break;
+    }
+    const lastUserId = page[page.length - 1]?.user?.id;
+    if (!lastUserId) {
+      break;
+    }
+    after = lastUserId;
+  }
+  return all;
 }
 
 export async function addMemberRole(
