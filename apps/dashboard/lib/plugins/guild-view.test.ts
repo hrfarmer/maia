@@ -153,9 +153,23 @@ describe("guild plugin view", () => {
       ]),
       patch: { WEBHOOK_URL: null },
       requestedEnabled: true,
+      previousEnabled: false,
     });
     assert.equal(result.enabled, false);
     assert.equal(result.values.has("WEBHOOK_URL"), false);
+  });
+
+  it("preserves previous enablement when the patch omits enabled", () => {
+    const result = applyGuildPluginValuePatch({
+      environment,
+      existingValues: new Map([
+        ["WEBHOOK_URL", "https://example.com"],
+        ["API_SECRET", "s"],
+      ]),
+      patch: { WEBHOOK_URL: "https://example.com" },
+      previousEnabled: true,
+    });
+    assert.equal(result.enabled, true);
   });
 
   it("shows slash control when the manifest declares commands", () => {
