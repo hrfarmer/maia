@@ -15,6 +15,9 @@ function mockHandlers(
     moderationCreateRole: async () => ({ ok: true, role: { id: "2", name: "New", color: 0, managed: false, position: 0, hoist: false, mentionable: false } }),
     moderationUpdateRole: async () => ({ ok: true, role: { id: "1", name: "Renamed", color: 0, managed: false, position: 1 } }),
     moderationDeleteRole: async () => ({ ok: true }),
+    listGuildMembersForModeration: async () => [
+      { user: { id: "9", username: "alice" }, roles: [] },
+    ],
     searchGuildMembersForModeration: async (_guildId, query) =>
       query ? [{ user: { id: "9", username: "alice" }, roles: [] }] : [],
     getMemberRoleIds: async () => ["1"],
@@ -101,10 +104,11 @@ describe("plugin localhost moderation API", () => {
     await api.close();
   });
 
-  it("returns no members without a query and caps search results", async () => {
+  it("lists all members without a query and caps search results", async () => {
     const registry = new PluginTokenRegistry();
     const token = registry.mintInvocationToken("guild-a", "demo-plugin");
     let lastQuery = "unset";
+    let listCalls = 0;
     const api = createPluginApiServer({
       port: 0,
       tokenRegistry: registry,
@@ -114,6 +118,10 @@ describe("plugin localhost moderation API", () => {
           ? { pluginId: "demo-plugin" }
           : null,
       moderationHandlers: mockHandlers({
+        listGuildMembersForModeration: async () => {
+          listCalls += 1;
+          return [{ user: { id: "listed", username: "listed" }, roles: [] }];
+        },
         searchGuildMembersForModeration: async (_guildId, query) => {
           lastQuery = query;
           return query ? new Array(25).fill({ user: { id: "1" }, roles: [] }) : [];
@@ -122,13 +130,16 @@ describe("plugin localhost moderation API", () => {
     });
     await api.listen();
 
-    const empty = await fetch(`${api.url()}/v1/guilds/guild-a/members`, {
+    const listed = await fetch(`${api.url()}/v1/guilds/guild-a/members`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    assert.equal(empty.status, 200);
-    const emptyBody = (await empty.json()) as { members: unknown[] };
-    assert.deepEqual(emptyBody.members, []);
-    assert.equal(lastQuery, "");
+    assert.equal(listed.status, 200);
+    const listedBody = (await listed.json()) as {
+      members: Array<{ user?: { id?: string } }>;
+    };
+    assert.equal(listedBody.members[0]?.user?.id, "listed");
+    assert.equal(listCalls, 1);
+    assert.equal(lastQuery, "unset");
 
     const found = await fetch(
       `${api.url()}/v1/guilds/guild-a/members?query=ali`,
@@ -139,6 +150,32 @@ describe("plugin localhost moderation API", () => {
     assert.equal(foundBody.members.length, 25);
     assert.equal(lastQuery, "ali");
 
+    await api.close();
+  });
+
+  it("maps Discord rate limits to HTTP 429", async () => {
+    const registry = new PluginTokenRegistry();
+    const token = registry.mintInvocationToken("guild-a", "demo-plugin");
+    const { DiscordApiError } = await import("@maia/moderation");
+    const api = createPluginApiServer({
+      port: 0,
+      tokenRegistry: registry,
+      db: {} as Db,
+      assertGuildApiAccess: async (provided, guildId) =>
+        registry.assertGuildAccess(provided, guildId)
+          ? { pluginId: "demo-plugin" }
+          : null,
+      moderationHandlers: mockHandlers({
+        listGuildMembersForModeration: async () => {
+          throw new DiscordApiError("You are being rate limited.", 429);
+        },
+      }),
+    });
+    await api.listen();
+    const res = await fetch(`${api.url()}/v1/guilds/guild-a/members`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    assert.equal(res.status, 429);
     await api.close();
   });
 

@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
+  DiscordApiError,
   ModerationError,
   getMemberRoleIds,
   listRolesForGuild,
@@ -17,6 +18,7 @@ import {
   moderationUpdateRole,
   parseRoleCreateInput,
   parseRoleUpdateInput,
+  listGuildMembersForModeration,
   searchGuildMembersForModeration,
   type ModerationActor,
 } from "@maia/moderation";
@@ -27,6 +29,7 @@ export interface PluginModerationHandlers {
   moderationCreateRole: typeof moderationCreateRole;
   moderationUpdateRole: typeof moderationUpdateRole;
   moderationDeleteRole: typeof moderationDeleteRole;
+  listGuildMembersForModeration: typeof listGuildMembersForModeration;
   searchGuildMembersForModeration: typeof searchGuildMembersForModeration;
   getMemberRoleIds: typeof getMemberRoleIds;
   moderationSetRoles: typeof moderationSetRoles;
@@ -46,6 +49,7 @@ export function defaultPluginModerationHandlers(): PluginModerationHandlers {
     moderationCreateRole,
     moderationUpdateRole,
     moderationDeleteRole,
+    listGuildMembersForModeration,
     searchGuildMembersForModeration,
     getMemberRoleIds,
     moderationSetRoles,
@@ -73,6 +77,10 @@ function sendJson(
 function handleModerationError(res: ServerResponse, error: unknown) {
   if (error instanceof ModerationError) {
     sendJson(res, 400, { error: error.message });
+    return;
+  }
+  if (error instanceof DiscordApiError && error.status === 429) {
+    sendJson(res, 429, { error: error.message });
     return;
   }
   if (error instanceof Error) {
@@ -179,10 +187,9 @@ export async function tryHandlePluginModerationRequest(
     const query =
       url.searchParams.get("query") ?? url.searchParams.get("q") ?? "";
     try {
-      const members = await handlers.searchGuildMembersForModeration(
-        guildId,
-        query,
-      );
+      const members = query.trim()
+        ? await handlers.searchGuildMembersForModeration(guildId, query)
+        : await handlers.listGuildMembersForModeration(guildId);
       sendJson(res, 200, { members });
     } catch (error) {
       handleModerationError(res, error);

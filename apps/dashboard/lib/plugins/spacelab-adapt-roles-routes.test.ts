@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   getDevSpacelabAdaptRolesView,
   patchDevSpacelabAdaptRoleLinks,
+  patchDevSpacelabGeneralMemberRoleId,
 } from "@/lib/dev-spacelab-adapt-roles";
 
 describe("spacelab adapt roles dev routes seam", () => {
@@ -17,5 +18,11 @@ describe("spacelab adapt roles dev routes seam", () => {
       (row) => row.adaptValue === "Alpha",
     );
     assert.equal(alphaSecond?.linkedRoleId, "111111111111111111");
+  });
+
+  it("persists the general member role in the dev adapt roles view", () => {
+    patchDevSpacelabGeneralMemberRoleId("222222222222222222");
+    const view = getDevSpacelabAdaptRolesView();
+    assert.equal(view.generalMemberRoleId, "222222222222222222");
   });
 });

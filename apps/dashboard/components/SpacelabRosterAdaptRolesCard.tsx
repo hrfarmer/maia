@@ -1,7 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -24,10 +35,21 @@ interface GuildRoleOption {
   name: string;
 }
 
+interface ForceSyncView {
+  pending: boolean;
+  requestedAt: string | null;
+  completedAt: string | null;
+  ok: boolean | null;
+  error: string | null;
+}
+
 interface AdaptRolesView {
   adaptRoleRows: AdaptRoleRow[];
   guildRoles: GuildRoleOption[];
   parsedAt: string | null;
+  generalMemberRoleId: string | null;
+  generalMemberRoleMissing: boolean;
+  forceSync: ForceSyncView;
 }
 
 interface SpacelabRosterAdaptRolesCardProps {
@@ -42,6 +64,7 @@ export function SpacelabRosterAdaptRolesCard({
   const [view, setView] = useState<AdaptRolesView | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [forceSyncOpen, setForceSyncOpen] = useState(false);
 
   const loadView = useCallback(async () => {
     const res = await fetch(
@@ -60,7 +83,7 @@ export function SpacelabRosterAdaptRolesCard({
     void loadView();
   }, [loadView]);
 
-  async function saveLink(adaptValue: string, discordRoleId: string | null) {
+  async function patchSettings(body: Record<string, unknown>) {
     setBusy(true);
     setStatus(null);
     try {
@@ -69,9 +92,7 @@ export function SpacelabRosterAdaptRolesCard({
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            links: { [adaptValue]: discordRoleId },
-          }),
+          body: JSON.stringify(body),
         },
       );
       if (!res.ok) {
@@ -85,6 +106,94 @@ export function SpacelabRosterAdaptRolesCard({
     }
   }
 
+  async function saveLink(adaptValue: string, discordRoleId: string | null) {
+    await patchSettings({ links: { [adaptValue]: discordRoleId } });
+  }
+
+  async function saveGeneralMemberRole(discordRoleId: string | null) {
+    await patchSettings({ generalMemberRoleId: discordRoleId });
+  }
+
+  async function requestForceSync() {
+    setBusy(true);
+    setStatus(null);
+    try {
+      const res = await fetch(
+        `/api/servers/${guildId}/plugins/spacelab-roster/force-sync`,
+        { method: "POST" },
+      );
+      if (!res.ok) {
+        setStatus("Save failed");
+        return;
+      }
+      const data = (await res.json()) as AdaptRolesView;
+      setView(data);
+    } finally {
+      setBusy(false);
+      setForceSyncOpen(false);
+    }
+  }
+
+  function forceSyncStatusLine(forceSync: ForceSyncView) {
+    if (forceSync.pending) {
+      return forceSync.requestedAt
+        ? `Pending since ${new Date(forceSync.requestedAt).toLocaleString()}`
+        : "Pending";
+    }
+    if (!forceSync.completedAt) {
+      return null;
+    }
+    const when = new Date(forceSync.completedAt).toLocaleString();
+    if (forceSync.ok === true) {
+      return `Last force sync: ${when} (ok)`;
+    }
+    if (forceSync.ok === false) {
+      return `Last force sync: ${when} (${forceSync.error ?? "failed"})`;
+    }
+    return `Last force sync: ${when}`;
+  }
+
+  const forceSyncControls = view ? (
+    <div
+      className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+      data-testid="spacelab-force-sync"
+    >
+      <p className="text-xs text-muted-foreground">
+        {forceSyncStatusLine(view.forceSync) ?? "No force sync yet"}
+      </p>
+      <AlertDialog open={forceSyncOpen} onOpenChange={setForceSyncOpen}>
+        <AlertDialogTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full rounded-sm sm:w-auto"
+            disabled={busy || view.forceSync.pending}
+            data-testid="spacelab-force-sync-button"
+          >
+            Force sync
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent className="rounded-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Force sync</AlertDialogTitle>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={busy}
+              onClick={(event) => {
+                event.preventDefault();
+                void requestForceSync();
+              }}
+            >
+              Force sync
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  ) : null;
+
   if (!view) {
     return (
       <p
@@ -96,10 +205,62 @@ export function SpacelabRosterAdaptRolesCard({
     );
   }
 
+  const generalMemberRoleField = (
+    <div
+      className="flex flex-col gap-2 rounded-sm border p-3 sm:flex-row sm:items-center sm:justify-between"
+      data-testid="spacelab-general-member-role"
+    >
+      <div className="min-w-0 space-y-1">
+        <Label htmlFor="spacelab-general-member-role-select">
+          All ADAPT members
+        </Label>
+        {view.generalMemberRoleMissing ? (
+          <Badge variant="destructive" className="rounded-sm">
+            Role missing
+          </Badge>
+        ) : null}
+      </div>
+      <Select
+        disabled={busy}
+        value={view.generalMemberRoleId ?? UNLINKED_VALUE}
+        onValueChange={(value) =>
+          void saveGeneralMemberRole(
+            value === UNLINKED_VALUE ? null : value,
+          )
+        }
+      >
+        <SelectTrigger
+          id="spacelab-general-member-role-select"
+          className={cn("w-full rounded-sm sm:w-[min(100%,16rem)]")}
+          aria-label="All ADAPT members role"
+        >
+          <SelectValue placeholder="Select role" />
+        </SelectTrigger>
+        <SelectContent className="rounded-sm">
+          <SelectItem value={UNLINKED_VALUE} className="rounded-sm">
+            None
+          </SelectItem>
+          {view.guildRoles.map((role) => (
+            <SelectItem key={role.id} value={role.id} className="rounded-sm">
+              {role.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+
   if (view.adaptRoleRows.length === 0) {
     return (
-      <div className="space-y-2" data-testid="spacelab-adapt-roles">
+      <div className="space-y-3" data-testid="spacelab-adapt-roles">
         <Label>ADAPT Roles</Label>
+        {status ? (
+          <p className="rounded-sm border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {status}
+          </p>
+        ) : null}
+        {generalMemberRoleField}
+        {forceSyncControls}
         <p className="text-sm text-muted-foreground">No roster values yet.</p>
       </div>
     );
@@ -121,6 +282,9 @@ export function SpacelabRosterAdaptRolesCard({
           {status}
         </p>
       ) : null}
+
+      {generalMemberRoleField}
+      {forceSyncControls}
 
       <ul className="space-y-3">
         {view.adaptRoleRows.map((row) => (

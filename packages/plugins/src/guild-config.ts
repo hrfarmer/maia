@@ -63,7 +63,8 @@ export type AlwaysOnGuildConfigChange =
   | "enabled"
   | "disabled"
   | "values_saved"
-  | "adapt_roles_saved";
+  | "adapt_roles_saved"
+  | "force_sync_requested";
 
 export interface AlwaysOnGuildConfigStdin {
   guildId: string;

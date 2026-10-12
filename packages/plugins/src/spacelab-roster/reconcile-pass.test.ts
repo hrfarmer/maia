@@ -7,6 +7,8 @@ import type {
 } from "./types.js";
 import {
   buildManagedLinkedRoleIds,
+  buildManagedRoleIds,
+  computeRoleChangesForMember,
   desiredLinkedRoleIdsForValues,
   exactUsernameMatches,
   runReconcilePass,
@@ -17,20 +19,29 @@ import {
 function fakeApi(
   overrides: Partial<DiscordRoleApi> & {
     members?: Map<string, Array<{ id: string; username: string }>>;
+    guildMemberList?: Array<{ id: string; username: string }>;
     roles?: Map<string, string[]>;
     calls?: Array<{ op: string; userId: string; roleId?: string }>;
+    listGuildMembersCalls?: { value: number };
   } = {},
 ): DiscordRoleApi {
   const members = overrides.members ?? new Map();
   const roles = overrides.roles ?? new Map();
   const calls = overrides.calls ?? [];
+  const listGuildMembersCalls = overrides.listGuildMembersCalls ?? { value: 0 };
+  const defaultGuildList =
+    overrides.guildMemberList ??
+    [...members.values()].flat();
   return {
     listGuildRoleIds:
       overrides.listGuildRoleIds ??
       (async () => new Set(["role-alpha", "role-beta", "role-gamma", "role-shared"])),
-    searchMembersByHandle:
-      overrides.searchMembersByHandle ??
-      (async (handle) => members.get(handle.toLowerCase()) ?? []),
+    listGuildMembers:
+      overrides.listGuildMembers ??
+      (async () => {
+        listGuildMembersCalls.value += 1;
+        return [...defaultGuildList];
+      }),
     getMemberRoleIds:
       overrides.getMemberRoleIds ??
       (async (userId) => roles.get(userId) ?? []),
@@ -93,6 +104,25 @@ describe("reconcile pass helpers", () => {
     assert.deepEqual(matches, [{ id: "1", username: "User.A" }]);
   });
 
+  it("removes any linked ADAPT role not desired in force sync mode", () => {
+    const adaptLinked = buildManagedRoleIds(
+      links({ Alpha: "role-alpha", Beta: "role-beta" }),
+      new Set(["role-alpha", "role-beta"]),
+      null,
+    );
+    const changes = computeRoleChangesForMember({
+      currentRoleIds: ["role-beta", "role-manual"],
+      desiredRoleIds: new Set(["role-alpha"]),
+      removableRoleIds: new Set(),
+      forceAdaptValid: true,
+      adaptLinkedRoleIds: adaptLinked,
+    });
+    assert.deepEqual(changes, {
+      toAdd: ["role-alpha"],
+      toRemove: ["role-beta"],
+    });
+  });
+
   it("collects managed linked role ids that still exist in the guild", () => {
     const managed = buildManagedLinkedRoleIds(
       links({ Alpha: "role-alpha", Beta: "role-gone" }),
@@ -120,9 +150,19 @@ describe("runReconcilePass", () => {
       rows: partial.rows ?? [],
       rememberedMembers: partial.rememberedMembers ?? [],
       links: partial.links ?? baseLinks,
+      generalMemberRoleId: partial.generalMemberRoleId ?? null,
+      previousAppliedLinks: partial.previousAppliedLinks ?? new Map(),
+      previousAppliedGeneralMemberRoleId:
+        partial.previousAppliedGeneralMemberRoleId ?? null,
       guildRoleIds:
         partial.guildRoleIds ??
-        new Set(["role-alpha", "role-beta", "role-gamma", "role-shared"]),
+        new Set([
+          "role-alpha",
+          "role-beta",
+          "role-gamma",
+          "role-shared",
+          "role-general",
+        ]),
       failures: partial.failures ?? [],
       mode: partial.mode ?? { kind: "full" },
     };
@@ -217,9 +257,21 @@ describe("runReconcilePass", () => {
           },
         ],
         rememberedMembers: [
-          { discordUserId: "uid-inactive", discordHandle: "inactive.user" },
-          { discordUserId: "uid-empty", discordHandle: "empty.user" },
-          { discordUserId: "uid-gone", discordHandle: "gone.user" },
+          {
+            discordUserId: "uid-inactive",
+            discordHandle: "inactive.user",
+            grantedRoleIds: ["role-alpha"],
+          },
+          {
+            discordUserId: "uid-empty",
+            discordHandle: "empty.user",
+            grantedRoleIds: ["role-beta"],
+          },
+          {
+            discordUserId: "uid-gone",
+            discordHandle: "gone.user",
+            grantedRoleIds: ["role-gamma"],
+          },
         ],
       }),
       api,
@@ -250,7 +302,13 @@ describe("runReconcilePass", () => {
             discordUserId: "uid-a",
           },
         ],
-        rememberedMembers: [{ discordUserId: "uid-a", discordHandle: "user.a" }],
+        rememberedMembers: [
+          {
+            discordUserId: "uid-a",
+            discordHandle: "user.a",
+            grantedRoleIds: ["role-alpha", "role-beta"],
+          },
+        ],
       }),
       api,
     );
@@ -276,11 +334,12 @@ describe("runReconcilePass", () => {
     assert.equal(result.rememberedMembers[0]?.discordUserId, "uid-a");
   });
 
-  it("uses stored Discord user ids for later removals without searching by email", async () => {
-    let searchCount = 0;
+  it("uses stored Discord user ids for later removals without listing members", async () => {
+    const listGuildMembersCalls = { value: 0 };
     const api = fakeApi({
-      searchMembersByHandle: async () => {
-        searchCount += 1;
+      listGuildMembersCalls,
+      listGuildMembers: async () => {
+        listGuildMembersCalls.value += 1;
         return [];
       },
       roles: new Map([["uid-a", ["role-alpha"]]]),
@@ -293,7 +352,92 @@ describe("runReconcilePass", () => {
       }),
       api,
     );
-    assert.equal(searchCount, 0);
+    assert.equal(listGuildMembersCalls.value, 0);
+  });
+
+  it("lists guild members once for many roster rows instead of searching per handle", async () => {
+    const listGuildMembersCalls = { value: 0 };
+    const guildMemberList = Array.from({ length: 33 }, (_, index) => ({
+      id: `uid-${index}`,
+      username: `user-${index}`,
+    }));
+    const rows = guildMemberList.map((member, index) => ({
+      discordHandle: `User-${index}`,
+      status: "Active" as const,
+      adaptRoleValues: ["Alpha"],
+    }));
+    const api = fakeApi({
+      listGuildMembersCalls,
+      guildMemberList,
+      roles: new Map(guildMemberList.map((member) => [member.id, []])),
+    });
+    await runReconcilePass(input({ rows }), api);
+    assert.equal(listGuildMembersCalls.value, 1);
+  });
+
+  it("matches roster handles case-insensitively and legacy name#discrim forms", async () => {
+    const api = fakeApi({
+      guildMemberList: [
+        { id: "uid-legacy", username: "LegacyUser" },
+        { id: "uid-case", username: "Mixed.Case" },
+      ],
+      roles: new Map([
+        ["uid-legacy", []],
+        ["uid-case", []],
+      ]),
+    });
+    const result = await runReconcilePass(
+      input({
+        rows: [
+          {
+            discordHandle: "legacyuser#1234",
+            status: "Active",
+            adaptRoleValues: ["Alpha"],
+          },
+          {
+            discordHandle: "mixed.case",
+            status: "Active",
+            adaptRoleValues: ["Alpha"],
+          },
+        ],
+      }),
+      api,
+    );
+    assert.equal(result.rows[0]?.discordUserId, "uid-legacy");
+    assert.equal(result.rows[1]?.discordUserId, "uid-case");
+  });
+
+  it("continues the pass when one member's role API fails", async () => {
+    const calls: Array<{ op: string; userId: string; roleId?: string }> = [];
+    const api = fakeApi({
+      calls,
+      guildMemberList: [
+        { id: "uid-fail", username: "fail.user" },
+        { id: "uid-ok", username: "ok.user" },
+      ],
+      roles: new Map([
+        ["uid-fail", []],
+        ["uid-ok", []],
+      ]),
+      getMemberRoleIds: async (userId) => {
+        if (userId === "uid-fail") {
+          throw new Error("discord member roles unavailable");
+        }
+        return [];
+      },
+    });
+    const result = await runReconcilePass(
+      input({
+        rows: [
+          { discordHandle: "fail.user", status: "Active", adaptRoleValues: ["Alpha"] },
+          { discordHandle: "ok.user", status: "Active", adaptRoleValues: ["Alpha"] },
+        ],
+      }),
+      api,
+    );
+    assert.deepEqual(calls, [{ op: "add", userId: "uid-ok", roleId: "role-alpha" }]);
+    assert.equal(result.failures.length, 1);
+    assert.equal(result.rememberedMembers.length, 1);
   });
 
   it("records failures by handle until a user id is known and keeps remembered members on later failures", async () => {
@@ -410,6 +554,224 @@ describe("runReconcilePass", () => {
       api,
     );
     assert.equal(sixth.failures[0]?.attempts, 5);
+  });
+
+  it("grants the general member role when a row qualifies for ADAPT", async () => {
+    const calls: Array<{ op: string; userId: string; roleId?: string }> = [];
+    const api = fakeApi({
+      calls,
+      guildMemberList: [{ id: "uid-a", username: "user.a" }],
+      roles: new Map([["uid-a", []]]),
+    });
+    await runReconcilePass(
+      input({
+        generalMemberRoleId: "role-general",
+        rows: [
+          { discordHandle: "user.a", status: "Active", adaptRoleValues: ["Alpha"] },
+        ],
+      }),
+      api,
+    );
+    assert.deepEqual(
+      [...calls].sort((a, b) => a.roleId!.localeCompare(b.roleId!)),
+      [
+        { op: "add", userId: "uid-a", roleId: "role-alpha" },
+        { op: "add", userId: "uid-a", roleId: "role-general" },
+      ],
+    );
+  });
+
+  it("does not grant the general member role when inactive or values are unmapped", async () => {
+    const calls: Array<{ op: string; userId: string; roleId?: string }> = [];
+    const api = fakeApi({
+      calls,
+      guildMemberList: [
+        { id: "uid-inactive", username: "inactive.user" },
+        { id: "uid-unmapped", username: "unmapped.user" },
+      ],
+      roles: new Map([
+        ["uid-inactive", []],
+        ["uid-unmapped", []],
+      ]),
+    });
+    await runReconcilePass(
+      input({
+        generalMemberRoleId: "role-general",
+        rows: [
+          {
+            discordHandle: "inactive.user",
+            status: "Inactive",
+            adaptRoleValues: ["Alpha"],
+          },
+          {
+            discordHandle: "unmapped.user",
+            status: "Active",
+            adaptRoleValues: ["Delta"],
+          },
+        ],
+      }),
+      api,
+    );
+    assert.equal(calls.length, 0);
+  });
+
+  it("removes the general member role when a remembered member no longer qualifies", async () => {
+    const calls: Array<{ op: string; userId: string; roleId?: string }> = [];
+    const api = fakeApi({
+      calls,
+      roles: new Map([["uid-a", ["role-general", "role-alpha"]]]),
+    });
+    await runReconcilePass(
+      input({
+        generalMemberRoleId: "role-general",
+        rows: [
+          {
+            discordHandle: "user.a",
+            status: "Inactive",
+            adaptRoleValues: ["Alpha"],
+            discordUserId: "uid-a",
+          },
+        ],
+        rememberedMembers: [
+          {
+            discordUserId: "uid-a",
+            discordHandle: "user.a",
+            grantedRoleIds: ["role-general", "role-alpha"],
+          },
+        ],
+      }),
+      api,
+    );
+    assert.deepEqual(
+      [...calls].sort((a, b) => a.roleId!.localeCompare(b.roleId!)),
+      [
+        { op: "remove", userId: "uid-a", roleId: "role-alpha" },
+        { op: "remove", userId: "uid-a", roleId: "role-general" },
+      ],
+    );
+  });
+
+  it("uses previous applied links to remove stale roles for legacy remembered members", async () => {
+    const calls: Array<{ op: string; userId: string; roleId?: string }> = [];
+    const api = fakeApi({
+      calls,
+      roles: new Map([["uid-a", ["role-alpha", "role-manual"]]]),
+    });
+    await runReconcilePass(
+      input({
+        links: links({ Alpha: "role-beta" }),
+        previousAppliedLinks: links({ Alpha: "role-alpha" }),
+        rows: [
+          {
+            discordHandle: "user.a",
+            status: "Active",
+            adaptRoleValues: ["Alpha"],
+            discordUserId: "uid-a",
+          },
+        ],
+        rememberedMembers: [{ discordUserId: "uid-a", discordHandle: "user.a" }],
+      }),
+      api,
+    );
+    assert.deepEqual(calls, [
+      { op: "add", userId: "uid-a", roleId: "role-beta" },
+      { op: "remove", userId: "uid-a", roleId: "role-alpha" },
+    ]);
+  });
+
+  it("force sync strips an extra linked role and adds missing roles", async () => {
+    const calls: Array<{ op: string; userId: string; roleId?: string }> = [];
+    const api = fakeApi({
+      calls,
+      roles: new Map([["uid-a", ["role-beta", "role-manual"]]]),
+    });
+    await runReconcilePass(
+      input({
+        mode: { kind: "force-sync" },
+        links: links({ Alpha: "role-alpha", Beta: "role-beta" }),
+        rows: [
+          {
+            discordHandle: "user.a",
+            status: "Active",
+            adaptRoleValues: ["Alpha"],
+            discordUserId: "uid-a",
+          },
+        ],
+        rememberedMembers: [{ discordUserId: "uid-a", discordHandle: "user.a" }],
+      }),
+      api,
+    );
+    assert.deepEqual(calls, [
+      { op: "add", userId: "uid-a", roleId: "role-alpha" },
+      { op: "remove", userId: "uid-a", roleId: "role-beta" },
+    ]);
+  });
+
+  it("removes a previously granted role after relink and keeps manual roles", async () => {
+    const calls: Array<{ op: string; userId: string; roleId?: string }> = [];
+    const roles = new Map<string, string[]>([["uid-a", ["role-manual"]]]);
+    const api = fakeApi({
+      calls,
+      guildMemberList: [{ id: "uid-a", username: "user.a" }],
+      roles,
+    });
+    const linksAlphaA = links({ Alpha: "role-alpha" });
+    const first = await runReconcilePass(
+      input({
+        links: linksAlphaA,
+        rows: [
+          { discordHandle: "user.a", status: "Active", adaptRoleValues: ["Alpha"] },
+        ],
+      }),
+      api,
+    );
+    assert.deepEqual(calls, [
+      { op: "add", userId: "uid-a", roleId: "role-alpha" },
+    ]);
+
+    calls.length = 0;
+    await runReconcilePass(
+      input({
+        links: links({ Alpha: "role-beta" }),
+        previousAppliedLinks: linksAlphaA,
+        rememberedMembers: first.rememberedMembers,
+        rows: [
+          {
+            discordHandle: "user.a",
+            status: "Active",
+            adaptRoleValues: ["Alpha"],
+            discordUserId: "uid-a",
+          },
+        ],
+      }),
+      api,
+    );
+    assert.deepEqual(calls, [
+      { op: "add", userId: "uid-a", roleId: "role-beta" },
+      { op: "remove", userId: "uid-a", roleId: "role-alpha" },
+    ]);
+    assert.deepEqual(first.rememberedMembers[0]?.grantedRoleIds, ["role-alpha"]);
+  });
+
+  it("does not grant or remove a general member role when unset", async () => {
+    const calls: Array<{ op: string; userId: string; roleId?: string }> = [];
+    const api = fakeApi({
+      calls,
+      guildMemberList: [{ id: "uid-a", username: "user.a" }],
+      roles: new Map([["uid-a", ["role-general"]]]),
+    });
+    await runReconcilePass(
+      input({
+        generalMemberRoleId: null,
+        rows: [
+          { discordHandle: "user.a", status: "Active", adaptRoleValues: ["Alpha"] },
+        ],
+      }),
+      api,
+    );
+    assert.deepEqual(calls, [
+      { op: "add", userId: "uid-a", roleId: "role-alpha" },
+    ]);
   });
 
   it("never calls a replace-all-roles API", async () => {

@@ -12,6 +12,7 @@ import {
 import type { Db } from "./client.js";
 import {
   spacelabAdaptRoleLinks,
+  spacelabGuildAdaptSettings,
   spacelabGuildRosterState,
 } from "./schema.js";
 
@@ -42,6 +43,166 @@ export async function listSpacelabAdaptRoleLinks(db: Db, guildId: string) {
   return db.query.spacelabAdaptRoleLinks.findMany({
     where: eq(spacelabAdaptRoleLinks.guildId, guildId),
   });
+}
+
+export async function getSpacelabGeneralMemberRoleId(
+  db: Db,
+  guildId: string,
+): Promise<string | null> {
+  const row = await db.query.spacelabGuildAdaptSettings.findFirst({
+    where: eq(spacelabGuildAdaptSettings.guildId, guildId),
+  });
+  return row?.generalMemberRoleId ?? null;
+}
+
+export async function setSpacelabGeneralMemberRoleId(
+  db: Db,
+  guildId: string,
+  generalMemberRoleId: string | null,
+) {
+  await db
+    .insert(spacelabGuildAdaptSettings)
+    .values({ guildId, generalMemberRoleId })
+    .onConflictDoUpdate({
+      target: spacelabGuildAdaptSettings.guildId,
+      set: { generalMemberRoleId },
+    });
+}
+
+export interface SpacelabLastAppliedAdaptLinks {
+  links: Map<string, string>;
+  generalMemberRoleId: string | null;
+}
+
+export async function getSpacelabLastAppliedAdaptLinks(
+  db: Db,
+  guildId: string,
+): Promise<SpacelabLastAppliedAdaptLinks> {
+  const row = await db.query.spacelabGuildAdaptSettings.findFirst({
+    where: eq(spacelabGuildAdaptSettings.guildId, guildId),
+  });
+  if (!row) {
+    return { links: new Map(), generalMemberRoleId: null };
+  }
+  const parsed = JSON.parse(row.lastAppliedLinksJson) as Record<string, string>;
+  return {
+    links: new Map(Object.entries(parsed)),
+    generalMemberRoleId: row.lastAppliedGeneralMemberRoleId ?? null,
+  };
+}
+
+export async function setSpacelabLastAppliedAdaptLinks(
+  db: Db,
+  guildId: string,
+  links: Map<string, string>,
+  generalMemberRoleId: string | null,
+) {
+  await db
+    .insert(spacelabGuildAdaptSettings)
+    .values({
+      guildId,
+      lastAppliedLinksJson: JSON.stringify(Object.fromEntries(links)),
+      lastAppliedGeneralMemberRoleId: generalMemberRoleId,
+    })
+    .onConflictDoUpdate({
+      target: spacelabGuildAdaptSettings.guildId,
+      set: {
+        lastAppliedLinksJson: JSON.stringify(Object.fromEntries(links)),
+        lastAppliedGeneralMemberRoleId: generalMemberRoleId,
+      },
+    });
+}
+
+export interface SpacelabForceSyncState {
+  forceSyncPending: boolean;
+  lastForceSyncRequestedAt: Date | null;
+  lastForceSyncCompletedAt: Date | null;
+  lastForceSyncOk: boolean | null;
+  lastForceSyncError: string | null;
+}
+
+export async function getSpacelabForceSyncState(
+  db: Db,
+  guildId: string,
+): Promise<SpacelabForceSyncState> {
+  const row = await db.query.spacelabGuildAdaptSettings.findFirst({
+    where: eq(spacelabGuildAdaptSettings.guildId, guildId),
+  });
+  if (!row) {
+    return {
+      forceSyncPending: false,
+      lastForceSyncRequestedAt: null,
+      lastForceSyncCompletedAt: null,
+      lastForceSyncOk: null,
+      lastForceSyncError: null,
+    };
+  }
+  return {
+    forceSyncPending: row.forceSyncPending,
+    lastForceSyncRequestedAt: row.lastForceSyncRequestedAt ?? null,
+    lastForceSyncCompletedAt: row.lastForceSyncCompletedAt ?? null,
+    lastForceSyncOk: row.lastForceSyncOk ?? null,
+    lastForceSyncError: row.lastForceSyncError ?? null,
+  };
+}
+
+export async function queueSpacelabForceSync(db: Db, guildId: string) {
+  const now = new Date();
+  await db
+    .insert(spacelabGuildAdaptSettings)
+    .values({
+      guildId,
+      forceSyncPending: true,
+      lastForceSyncRequestedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: spacelabGuildAdaptSettings.guildId,
+      set: {
+        forceSyncPending: true,
+        lastForceSyncRequestedAt: now,
+      },
+    });
+}
+
+export async function completeSpacelabForceSync(
+  db: Db,
+  guildId: string,
+  input: { ok: boolean; error?: string | null },
+) {
+  await db
+    .insert(spacelabGuildAdaptSettings)
+    .values({
+      guildId,
+      forceSyncPending: false,
+      lastForceSyncCompletedAt: new Date(),
+      lastForceSyncOk: input.ok,
+      lastForceSyncError: input.error ?? null,
+    })
+    .onConflictDoUpdate({
+      target: spacelabGuildAdaptSettings.guildId,
+      set: {
+        forceSyncPending: false,
+        lastForceSyncCompletedAt: new Date(),
+        lastForceSyncOk: input.ok,
+        lastForceSyncError: input.error ?? null,
+      },
+    });
+}
+
+export async function snapshotSpacelabCurrentAdaptLinksAsLastApplied(
+  db: Db,
+  guildId: string,
+) {
+  const [linkRows, generalMemberRoleId] = await Promise.all([
+    listSpacelabAdaptRoleLinks(db, guildId),
+    getSpacelabGeneralMemberRoleId(db, guildId),
+  ]);
+  await setSpacelabLastAppliedAdaptLinks(
+    db,
+    guildId,
+    new Map(linkRows.map((row) => [row.adaptValue, row.discordRoleId])),
+    generalMemberRoleId,
+  );
 }
 
 export async function upsertSpacelabParsedRoster(

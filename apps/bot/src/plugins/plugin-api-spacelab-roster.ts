@@ -1,6 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Db } from "@maia/db";
 import {
+  commitSpacelabLastAppliedAdaptLinksFromCurrent,
+  completeSpacelabForceSync,
   getSpacelabReconcileState,
   getSpacelabGuildCycleState,
   ingestSpacelabLabRosterMessage,
@@ -128,6 +130,35 @@ export async function tryHandlePluginSpacelabRosterRequest(
     return true;
   }
 
+  const forceSyncMatch = url.pathname.match(
+    /^\/v1\/guilds\/([^/]+)\/spacelab-roster\/force-sync-outcome$/,
+  );
+  if (
+    forceSyncMatch &&
+    forceSyncMatch[1] === guildId &&
+    req.method === "PUT"
+  ) {
+    let body: unknown;
+    try {
+      body = await readJsonBody(req);
+    } catch {
+      sendJson(res, 400, { error: "Invalid JSON body" });
+      return true;
+    }
+    const parsed = body as { ok?: unknown; error?: unknown };
+    if (typeof parsed.ok !== "boolean") {
+      sendJson(res, 400, { error: "ok must be a boolean" });
+      return true;
+    }
+    const error =
+      parsed.error === null || parsed.error === undefined
+        ? null
+        : String(parsed.error);
+    await completeSpacelabForceSync(db, guildId, { ok: parsed.ok, error });
+    sendJson(res, 200, { ok: true });
+    return true;
+  }
+
   const stateMatch = url.pathname.match(
     /^\/v1\/guilds\/([^/]+)\/spacelab-roster\/reconcile-state$/,
   );
@@ -144,6 +175,12 @@ export async function tryHandlePluginSpacelabRosterRequest(
     sendJson(res, 200, {
       rows: state.rows,
       links: Object.fromEntries(state.links.entries()),
+      generalMemberRoleId: state.generalMemberRoleId,
+      previousAppliedLinks: Object.fromEntries(
+        state.previousAppliedLinks.entries(),
+      ),
+      previousAppliedGeneralMemberRoleId:
+        state.previousAppliedGeneralMemberRoleId,
       rememberedMembers: state.rememberedMembers,
       failures: state.failures,
     });
@@ -162,6 +199,7 @@ export async function tryHandlePluginSpacelabRosterRequest(
       rows?: unknown;
       rememberedMembers?: unknown;
       failures?: unknown;
+      forceSyncCompleted?: { ok?: unknown; error?: unknown };
     };
     if (!Array.isArray(parsed.rows)) {
       sendJson(res, 400, { error: "rows must be an array" });
@@ -187,6 +225,22 @@ export async function tryHandlePluginSpacelabRosterRequest(
         typeof saveSpacelabReconcileResult
       >[2]["failures"],
     });
+    await commitSpacelabLastAppliedAdaptLinksFromCurrent(db, guildId);
+    if (
+      parsed.forceSyncCompleted &&
+      typeof parsed.forceSyncCompleted === "object" &&
+      typeof parsed.forceSyncCompleted.ok === "boolean"
+    ) {
+      const error =
+        parsed.forceSyncCompleted.error === null ||
+        parsed.forceSyncCompleted.error === undefined
+          ? null
+          : String(parsed.forceSyncCompleted.error);
+      await completeSpacelabForceSync(db, guildId, {
+        ok: parsed.forceSyncCompleted.ok,
+        error,
+      });
+    }
     sendJson(res, 200, { ok: true });
     return true;
   }

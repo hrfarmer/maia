@@ -11,12 +11,21 @@ import {
   spacelabReconcileFailures,
   spacelabRememberedMembers,
 } from "./schema.js";
+import {
+  getSpacelabGeneralMemberRoleId,
+  getSpacelabLastAppliedAdaptLinks,
+  setSpacelabLastAppliedAdaptLinks,
+  listSpacelabAdaptRoleLinks,
+} from "./spacelab-roster.js";
 
 export interface SpacelabReconcileState {
   rows: SavedRosterRow[];
   adaptValues: string[];
   parsedAt: Date | null;
   links: Map<string, string>;
+  generalMemberRoleId: string | null;
+  previousAppliedLinks: Map<string, string>;
+  previousAppliedGeneralMemberRoleId: string | null;
   rememberedMembers: SpacelabRememberedMember[];
   failures: SpacelabReconcileFailure[];
 }
@@ -58,25 +67,32 @@ export async function getSpacelabReconcileState(
     adaptValues: JSON.parse(rosterRow.adaptValuesJson) as string[],
     parsedAt: rosterRow.parsedAt,
   };
-  const [links, remembered, failures] = await Promise.all([
-    db.query.spacelabAdaptRoleLinks.findMany({
-      where: eq(spacelabAdaptRoleLinks.guildId, guildId),
-    }),
-    db.query.spacelabRememberedMembers.findMany({
-      where: eq(spacelabRememberedMembers.guildId, guildId),
-    }),
-    db.query.spacelabReconcileFailures.findMany({
-      where: eq(spacelabReconcileFailures.guildId, guildId),
-    }),
-  ]);
+  const [links, generalMemberRoleId, lastApplied, remembered, failures] =
+    await Promise.all([
+      db.query.spacelabAdaptRoleLinks.findMany({
+        where: eq(spacelabAdaptRoleLinks.guildId, guildId),
+      }),
+      getSpacelabGeneralMemberRoleId(db, guildId),
+      getSpacelabLastAppliedAdaptLinks(db, guildId),
+      db.query.spacelabRememberedMembers.findMany({
+        where: eq(spacelabRememberedMembers.guildId, guildId),
+      }),
+      db.query.spacelabReconcileFailures.findMany({
+        where: eq(spacelabReconcileFailures.guildId, guildId),
+      }),
+    ]);
   return {
     rows: roster.rows as SavedRosterRow[],
     adaptValues: roster.adaptValues,
     parsedAt: roster.parsedAt,
     links: new Map(links.map((row) => [row.adaptValue, row.discordRoleId])),
+    generalMemberRoleId,
+    previousAppliedLinks: lastApplied.links,
+    previousAppliedGeneralMemberRoleId: lastApplied.generalMemberRoleId,
     rememberedMembers: remembered.map((row) => ({
       discordUserId: row.discordUserId,
       discordHandle: row.discordHandle,
+      grantedRoleIds: JSON.parse(row.grantedRoleIdsJson) as string[],
     })),
     failures: failures.map((row) => ({
       memberKey: row.memberKey,
@@ -115,6 +131,7 @@ export async function saveSpacelabReconcileResult(
         guildId,
         discordUserId: member.discordUserId,
         discordHandle: member.discordHandle,
+        grantedRoleIdsJson: JSON.stringify(member.grantedRoleIds ?? []),
       })),
     );
   }
@@ -130,4 +147,20 @@ export async function saveSpacelabReconcileResult(
       })),
     );
   }
+}
+
+export async function commitSpacelabLastAppliedAdaptLinksFromCurrent(
+  db: Db,
+  guildId: string,
+) {
+  const [linkRows, generalMemberRoleId] = await Promise.all([
+    listSpacelabAdaptRoleLinks(db, guildId),
+    getSpacelabGeneralMemberRoleId(db, guildId),
+  ]);
+  await setSpacelabLastAppliedAdaptLinks(
+    db,
+    guildId,
+    new Map(linkRows.map((row) => [row.adaptValue, row.discordRoleId])),
+    generalMemberRoleId,
+  );
 }

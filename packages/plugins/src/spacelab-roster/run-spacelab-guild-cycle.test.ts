@@ -184,23 +184,34 @@ function createMaiaFetch(state: {
 
     if (url.pathname === "/v1/guilds/guild-1/members") {
       const query = url.searchParams.get("query");
-      if (query === "user.a") {
-        return new Response(
-          JSON.stringify({
-            members: [{ user: { id: "uid-a", username: "user.a" } }],
-          }),
-          { status: 200 },
-        );
+      if (query) {
+        if (query === "user.a") {
+          return new Response(
+            JSON.stringify({
+              members: [{ user: { id: "uid-a", username: "user.a" } }],
+            }),
+            { status: 200 },
+          );
+        }
+        if (query === "user.b") {
+          return new Response(
+            JSON.stringify({
+              members: [{ user: { id: "uid-b", username: "user.b" } }],
+            }),
+            { status: 200 },
+          );
+        }
+        return new Response(JSON.stringify({ members: [] }), { status: 200 });
       }
-      if (query === "user.b") {
-        return new Response(
-          JSON.stringify({
-            members: [{ user: { id: "uid-b", username: "user.b" } }],
-          }),
-          { status: 200 },
-        );
-      }
-      return new Response(JSON.stringify({ members: [] }), { status: 200 });
+      return new Response(
+        JSON.stringify({
+          members: [
+            { user: { id: "uid-a", username: "user.a" } },
+            { user: { id: "uid-b", username: "user.b" } },
+          ],
+        }),
+        { status: 200 },
+      );
     }
 
     return new Response(JSON.stringify({ error: "unexpected", url: url.pathname }), {

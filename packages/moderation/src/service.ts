@@ -17,6 +17,7 @@ import {
   getBotUserId,
   kickMember,
   removeMemberRole,
+  listAllGuildMembers,
   searchGuildMembers,
   setMemberNickname,
   setMemberRoles,
@@ -82,6 +83,9 @@ function mapDiscordError(error: unknown): never {
   if (error instanceof DiscordApiError) {
     if (error.status === 404) {
       throw new ModerationError("Discord resource not found.");
+    }
+    if (error.status === 429) {
+      throw error;
     }
     throw new ModerationError(error.message);
   }
@@ -178,6 +182,14 @@ export async function searchGuildMembersForModeration(
   }
   const members = await searchGuildMembers(guildId, trimmed, 25);
   return members.slice(0, 25);
+}
+
+export async function listGuildMembersForModeration(guildId: string) {
+  try {
+    return await listAllGuildMembers(guildId);
+  } catch (error) {
+    mapDiscordError(error);
+  }
 }
 
 export async function listRolesForGuild(guildId: string) {

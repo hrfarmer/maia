@@ -8,10 +8,15 @@ import type { Db } from "@maia/db";
 import {
   bumpSpacelabAdaptLinksRevision,
   clearSpacelabReconcileFailures,
+  getSpacelabForceSyncState,
+  getSpacelabGeneralMemberRoleId,
   getSpacelabGuildRosterState,
+  queueSpacelabForceSync,
   ingestSpacelabLabRosterMessage,
   listSpacelabAdaptRoleLinks,
   setSpacelabAdaptRoleLink,
+  setSpacelabGeneralMemberRoleId,
+  setSpacelabLastAppliedAdaptLinks,
   upsertSpacelabParsedRoster,
 } from "@maia/db";
 
@@ -20,10 +25,21 @@ export interface GuildRoleOption {
   name: string;
 }
 
+export interface SpacelabForceSyncView {
+  pending: boolean;
+  requestedAt: string | null;
+  completedAt: string | null;
+  ok: boolean | null;
+  error: string | null;
+}
+
 export interface SpacelabAdaptRolesView {
   adaptRoleRows: SpacelabAdaptRoleRowView[];
   guildRoles: GuildRoleOption[];
   parsedAt: string | null;
+  generalMemberRoleId: string | null;
+  generalMemberRoleMissing: boolean;
+  forceSync: SpacelabForceSyncView;
 }
 
 export interface SpacelabRosterRepository {
@@ -38,6 +54,10 @@ export interface SpacelabRosterRepository {
   }): Promise<void>;
   getLinkedRoles(): Promise<Map<string, string>>;
   setLinkedRole(adaptValue: string, discordRoleId: string | null): Promise<void>;
+  getGeneralMemberRoleId?(): Promise<string | null>;
+  setGeneralMemberRoleId?(discordRoleId: string | null): Promise<void>;
+  snapshotLastAppliedAdaptLinksBeforeChange?(): Promise<void>;
+  getForceSyncState?(): Promise<import("@maia/db").SpacelabForceSyncState>;
   clearReconcileFailures?(): Promise<void>;
   bumpAdaptLinksRevision?(): Promise<void>;
 }
@@ -59,6 +79,27 @@ export function createDbSpacelabRosterRepository(
     },
     async setLinkedRole(adaptValue, discordRoleId) {
       await setSpacelabAdaptRoleLink(db, guildId, adaptValue, discordRoleId);
+    },
+    async getGeneralMemberRoleId() {
+      return getSpacelabGeneralMemberRoleId(db, guildId);
+    },
+    async setGeneralMemberRoleId(discordRoleId) {
+      await setSpacelabGeneralMemberRoleId(db, guildId, discordRoleId);
+    },
+    async snapshotLastAppliedAdaptLinksBeforeChange() {
+      const [linkRows, generalMemberRoleId] = await Promise.all([
+        listSpacelabAdaptRoleLinks(db, guildId),
+        getSpacelabGeneralMemberRoleId(db, guildId),
+      ]);
+      await setSpacelabLastAppliedAdaptLinks(
+        db,
+        guildId,
+        new Map(linkRows.map((row) => [row.adaptValue, row.discordRoleId])),
+        generalMemberRoleId,
+      );
+    },
+    async getForceSyncState() {
+      return getSpacelabForceSyncState(db, guildId);
     },
     async clearReconcileFailures() {
       await clearSpacelabReconcileFailures(db, guildId);
@@ -89,10 +130,20 @@ export async function buildSpacelabAdaptRolesView(
   repo: SpacelabRosterRepository,
   guildRoles: GuildRoleOption[],
 ): Promise<SpacelabAdaptRolesView> {
-  const [parsed, linkedRoles] = await Promise.all([
-    repo.getParsedRoster(),
-    repo.getLinkedRoles(),
-  ]);
+  const [parsed, linkedRoles, generalMemberRoleId, forceSyncState] =
+    await Promise.all([
+      repo.getParsedRoster(),
+      repo.getLinkedRoles(),
+      repo.getGeneralMemberRoleId?.() ?? Promise.resolve(null),
+      repo.getForceSyncState?.() ??
+        Promise.resolve({
+          forceSyncPending: false,
+          lastForceSyncRequestedAt: null,
+          lastForceSyncCompletedAt: null,
+          lastForceSyncOk: null,
+          lastForceSyncError: null,
+        }),
+    ]);
   const guildRoleIds = new Set(guildRoles.map((role) => role.id));
   const adaptRoleRows = buildSpacelabAdaptRoleRows({
     currentAdaptValues: parsed?.adaptValues ?? [],
@@ -103,15 +154,41 @@ export async function buildSpacelabAdaptRolesView(
     adaptRoleRows,
     guildRoles: [...guildRoles].sort((a, b) => a.name.localeCompare(b.name)),
     parsedAt: parsed?.parsedAt.toISOString() ?? null,
+    generalMemberRoleId,
+    generalMemberRoleMissing: Boolean(
+      generalMemberRoleId && !guildRoleIds.has(generalMemberRoleId),
+    ),
+    forceSync: {
+      pending: forceSyncState.forceSyncPending,
+      requestedAt: forceSyncState.lastForceSyncRequestedAt?.toISOString() ?? null,
+      completedAt:
+        forceSyncState.lastForceSyncCompletedAt?.toISOString() ?? null,
+      ok: forceSyncState.lastForceSyncOk,
+      error: forceSyncState.lastForceSyncError,
+    },
   };
+}
+
+export async function queueSpacelabAdaptForceSync(db: Db, guildId: string) {
+  await queueSpacelabForceSync(db, guildId);
 }
 
 export async function saveSpacelabAdaptRoleLinks(
   repo: SpacelabRosterRepository,
   links: Record<string, string | null>,
+  generalMemberRoleId?: string | null,
 ) {
+  if (
+    Object.keys(links).length > 0 ||
+    generalMemberRoleId !== undefined
+  ) {
+    await repo.snapshotLastAppliedAdaptLinksBeforeChange?.();
+  }
   for (const [adaptValue, discordRoleId] of Object.entries(links)) {
     await repo.setLinkedRole(adaptValue, discordRoleId);
+  }
+  if (generalMemberRoleId !== undefined) {
+    await repo.setGeneralMemberRoleId?.(generalMemberRoleId);
   }
   await repo.clearReconcileFailures?.();
   await repo.bumpAdaptLinksRevision?.();
