@@ -12,6 +12,7 @@ import {
   saveSpacelabCycleState,
   type MaiaSpacelabPluginApiConfig,
 } from "./maia-spacelab-plugin-api.js";
+import { fetchSpacelabReconcileState } from "./maia-discord-role-api.js";
 import { runSpacelabGuildReconcile } from "./run-spacelab-reconcile.js";
 import type { SpacelabReconcilePassMode } from "./types.js";
 
@@ -150,12 +151,15 @@ export async function runSpacelabGuildCycle(input: {
   const inboxMessages = await graph.listInboxMessages(accessToken);
   const rosterMessages = rosterMessagesInInbox(inboxMessages, rosterColumn);
   const newestRoster = rosterMessages[0];
+  const reconcileState = await fetchSpacelabReconcileState(config);
+  const savedRosterRowCount = reconcileState?.rows.length ?? 0;
 
   const linksRevisionChanged =
     cycleState.adaptLinksRevision > cycleState.lastProcessedAdaptLinksRevision;
   const hasNewRoster =
     Boolean(newestRoster) &&
-    newestRoster!.id !== cycleState.lastParsedMessageId;
+    (newestRoster!.id !== cycleState.lastParsedMessageId ||
+      savedRosterRowCount === 0);
 
   if (!hasNewRoster) {
     const notRosterReason =
@@ -179,7 +183,10 @@ export async function runSpacelabGuildCycle(input: {
 
   const parsed = parseLabRosterMessage(newestRoster!.bodyContent, rosterColumn);
   if (!parsed.ok) {
-    await recordCycleEnd(config, { lastError: null });
+    await recordCycleEnd(config, {
+      lastError:
+        parsed.reason === "roster_no_rows" ? "roster_no_rows" : null,
+    });
     return { ok: false, skippedReason: "unparseable_roster" };
   }
 

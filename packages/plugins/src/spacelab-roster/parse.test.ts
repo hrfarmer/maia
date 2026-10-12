@@ -4,6 +4,8 @@ import {
   SYNTHETIC_LAB_ROSTER_EXPORT,
   SYNTHETIC_LAB_ROSTER_EXPORT_CSV,
   SYNTHETIC_LAB_ROSTER_EXPORT_CSV_INVALID_ROW,
+  SYNTHETIC_LAB_ROSTER_EXPORT_CSV_SPACE_SEPARATED,
+  SYNTHETIC_LAB_ROSTER_EXPORT_CSV_SPACE_SEPARATED_MULTIWORD_TITLE,
   SYNTHETIC_LAB_ROSTER_EXPORT_INVALID_ROW,
 } from "./fixture.js";
 import {
@@ -121,6 +123,71 @@ describe("parseLabRosterMessage", () => {
     const html = `<html><body><pre>${SYNTHETIC_LAB_ROSTER_EXPORT_CSV.replace(/&/g, "&amp;")}</pre></body></html>`;
     const plain = normalizeLabRosterMessageBody(html);
     assert.equal(isLabRosterExportMessage(plain, "Subteam"), true);
+  });
+
+  it("parses Power Automate CSV when records are separated by whitespace instead of newlines", () => {
+    assert.equal(
+      isLabRosterExportMessage(
+        SYNTHETIC_LAB_ROSTER_EXPORT_CSV_SPACE_SEPARATED,
+        "Subteam",
+      ),
+      true,
+    );
+    const parsed = parseLabRosterMessage(
+      SYNTHETIC_LAB_ROSTER_EXPORT_CSV_SPACE_SEPARATED,
+      "Subteam",
+    );
+    assert.equal(parsed.ok, true);
+    if (!parsed.ok) {
+      return;
+    }
+    assert.equal(parsed.rows.length, 2);
+    assert.deepEqual(parsed.adaptRoleValues, ["Alpha", "Beta", "Delta", "Gamma"]);
+  });
+
+  it("does not treat unquoted spaces inside a field as record boundaries", () => {
+    const parsed = parseLabRosterMessage(
+      SYNTHETIC_LAB_ROSTER_EXPORT_CSV_SPACE_SEPARATED_MULTIWORD_TITLE,
+      "Subteam",
+    );
+    assert.equal(parsed.ok, true);
+    if (!parsed.ok) {
+      return;
+    }
+    assert.equal(parsed.rows.length, 2);
+  });
+
+  it("logs non-PII parse structure with header width, record count, and rejection tallies", () => {
+    const lines: string[] = [];
+    const originalLog = console.log;
+    console.log = (line: string) => {
+      lines.push(line);
+    };
+    try {
+      parseLabRosterMessage(
+        SYNTHETIC_LAB_ROSTER_EXPORT_CSV_SPACE_SEPARATED,
+        "Subteam",
+      );
+    } finally {
+      console.log = originalLog;
+    }
+    const structural = lines.find((line) => line.includes("spacelabRosterParse"));
+    assert.ok(structural);
+    const payload = JSON.parse(structural!) as {
+      spacelabRosterParse: { headerColumnCount: number; recordCount: number };
+    };
+    assert.equal(payload.spacelabRosterParse.headerColumnCount, 10);
+    assert.equal(payload.spacelabRosterParse.recordCount, 3);
+  });
+
+  it("treats a valid header with zero data rows as a parse failure", () => {
+    const headerOnly = SYNTHETIC_LAB_ROSTER_EXPORT_CSV.split("\n")[0]!;
+    const parsed = parseLabRosterMessage(headerOnly, "Subteam");
+    assert.equal(parsed.ok, false);
+    if (parsed.ok) {
+      return;
+    }
+    assert.equal(parsed.reason, "roster_no_rows");
   });
 
   it("reports non-PII reasons when a message is not a roster export", () => {

@@ -9,9 +9,14 @@ export interface SavedRosterRow extends ParsedRosterRow {
   discordUserId?: string;
 }
 
+export type ParseLabRosterFailureReason =
+  | "roster_no_rows"
+  | "invalid_row"
+  | "not_recognized";
+
 export type ParseLabRosterResult =
   | { ok: true; rows: ParsedRosterRow[]; adaptRoleValues: string[] }
-  | { ok: false };
+  | { ok: false; reason?: ParseLabRosterFailureReason };
 
 export interface SpacelabRememberedMember {
   discordUserId: string;

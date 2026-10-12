@@ -23,3 +23,17 @@ export const SYNTHETIC_LAB_ROSTER_EXPORT_CSV_INVALID_ROW = [
   "@odata.etag,DiscordHandle,Status,Subteam,Subteam#Id",
   '"e1",user.a,Active,not-json,1',
 ].join("\n");
+
+/** Power Automate CSV with header and rows separated by whitespace only (Graph text body). */
+export const SYNTHETIC_LAB_ROSTER_EXPORT_CSV_SPACE_SEPARATED =
+  SYNTHETIC_LAB_ROSTER_EXPORT_CSV.replace(/\r?\n/g, " ").trim();
+
+/** Same export with an unquoted multi-word Title to guard record-boundary splitting. */
+export const SYNTHETIC_LAB_ROSTER_EXPORT_CSV_SPACE_SEPARATED_MULTIWORD_TITLE = [
+  "@odata.etag,ItemInternalId,ID,Title,DiscordHandle,Status,Subteam,Subteam#Id,Role,Role#Id",
+  '"etag-a","internal-a","1",Jane Example,user.a,Active,"{""Value"":""Alpha""}",1,"{""Value"":""IgnoreRole""}",9',
+  '"etag-b","internal-b","2",Other Person,USER.A,Inactive,"{""Value"":""Beta""}",2,"{""Value"":""IgnoreRole2""}",10',
+  '"etag-c","internal-c","3",Row C,user.b,Active,"[{""Value"":""Gamma""},{""Value"":""Delta""}]",3,"{""Value"":""IgnoreRole3""}",11',
+]
+  .join(" ")
+  .trim();
