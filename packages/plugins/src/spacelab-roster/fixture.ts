@@ -29,6 +29,26 @@ export const SYNTHETIC_LAB_ROSTER_EXPORT_CSV_SPACE_SEPARATED =
   SYNTHETIC_LAB_ROSTER_EXPORT_CSV.replace(/\r?\n/g, " ").trim();
 
 /** Same export with an unquoted multi-word Title to guard record-boundary splitting. */
+/** CSV row with a line break between a closing quote and the following comma (Graph wrap). */
+export const SYNTHETIC_LAB_ROSTER_EXPORT_CSV_WRAPPED_QUOTE_BEFORE_COMMA = [
+  "@odata.etag,ItemInternalId,ID,Title,DiscordHandle,Status,Subteam,Subteam#Id,Role,Role#Id",
+  '"etag-a","internal-a"\n,"1","Row A",user.a,Active,"{""Value"":""Alpha""}",1,"{""Value"":""IgnoreRole""}",9',
+  '"etag-b","internal-b","2","Row B",USER.A,Inactive,"{""Value"":""Beta""}",2,"{""Value"":""IgnoreRole2""}",10',
+  '"etag-c","internal-c","3","Row C",user.b,Active,"[{""Value"":""Gamma""},{""Value"":""Delta""}]",3,"{""Value"":""IgnoreRole3""}",11',
+]
+  .join("\n")
+  .trim();
+
+/** CSV row with a wrapped unquoted field (line break mid Title). */
+export const SYNTHETIC_LAB_ROSTER_EXPORT_CSV_WRAPPED_UNQUOTED_FIELD = [
+  "@odata.etag,ItemInternalId,ID,Title,DiscordHandle,Status,Subteam,Subteam#Id,Role,Role#Id",
+  '"etag-a","internal-a","1",Jane\nExample,user.a,Active,"{""Value"":""Alpha""}",1,"{""Value"":""IgnoreRole""}",9',
+  '"etag-b","internal-b","2",Other Person,USER.A,Inactive,"{""Value"":""Beta""}",2,"{""Value"":""IgnoreRole2""}",10',
+  '"etag-c","internal-c","3",Row C,user.b,Active,"[{""Value"":""Gamma""},{""Value"":""Delta""}]",3,"{""Value"":""IgnoreRole3""}",11',
+]
+  .join("\n")
+  .trim();
+
 export const SYNTHETIC_LAB_ROSTER_EXPORT_CSV_SPACE_SEPARATED_MULTIWORD_TITLE = [
   "@odata.etag,ItemInternalId,ID,Title,DiscordHandle,Status,Subteam,Subteam#Id,Role,Role#Id",
   '"etag-a","internal-a","1",Jane Example,user.a,Active,"{""Value"":""Alpha""}",1,"{""Value"":""IgnoreRole""}",9',
@@ -178,6 +198,41 @@ export function buildProductionShapeLabRosterExport(
 
 export const SYNTHETIC_LAB_ROSTER_EXPORT_PRODUCTION_SHAPE =
   buildProductionShapeLabRosterExport();
+
+/** Simulates Graph/Outlook soft wraps outside quoted CSV regions. */
+export function injectGraphLikeLineWraps(
+  body: string,
+  width: number,
+  insert = "\r\n",
+): string {
+  let out = "";
+  let lineLen = 0;
+  let inQuotes = false;
+  for (let index = 0; index < body.length; index += 1) {
+    const char = body[index]!;
+    if (char === '"') {
+      if (inQuotes && body[index + 1] === '"') {
+        out += '""';
+        lineLen += 2;
+        index += 1;
+        continue;
+      }
+      inQuotes = !inQuotes;
+    }
+    if (!inQuotes && lineLen >= width) {
+      out += insert;
+      lineLen = 0;
+    }
+    out += char;
+    lineLen += 1;
+  }
+  return out;
+}
+
+/** Inserts a wrap at a single index (for targeted regression cases). */
+export function injectTextAt(body: string, index: number, insert: string): string {
+  return `${body.slice(0, index)}${insert}${body.slice(index)}`;
+}
 
 export const SYNTHETIC_LAB_ROSTER_EXPORT_PRODUCTION_SHAPE_WITH_SKIPPED_ROWS =
   buildProductionShapeLabRosterExport({

@@ -46,6 +46,9 @@ export async function tryHandlePluginSpacelabRosterRequest(
         lastError: state.lastError,
         lastParsedMessageId: state.lastParsedMessageId,
         pendingArchiveMessageIds: state.pendingArchiveMessageIds,
+        lastFailedParseMessageId: state.lastFailedParseMessageId,
+        lastFailedParseReceivedAt: state.lastFailedParseReceivedAt,
+        pendingArchiveAttemptsByMessageId: state.pendingArchiveAttemptsByMessageId,
         adaptLinksRevision: state.adaptLinksRevision,
         lastProcessedAdaptLinksRevision: state.lastProcessedAdaptLinksRevision,
       });
@@ -64,6 +67,9 @@ export async function tryHandlePluginSpacelabRosterRequest(
         lastError?: string | null;
         lastParsedMessageId?: string | null;
         pendingArchiveMessageIds?: string[];
+        lastFailedParseMessageId?: string | null;
+        lastFailedParseReceivedAt?: string | null;
+        pendingArchiveAttemptsByMessageId?: Record<string, number>;
         lastProcessedAdaptLinksRevision?: number;
       };
       const current = await getSpacelabGuildCycleState(db, guildId);
@@ -82,6 +88,17 @@ export async function tryHandlePluginSpacelabRosterRequest(
             : parsed.lastParsedMessageId,
         pendingArchiveMessageIds:
           parsed.pendingArchiveMessageIds ?? current.pendingArchiveMessageIds,
+        lastFailedParseMessageId:
+          parsed.lastFailedParseMessageId === undefined
+            ? current.lastFailedParseMessageId
+            : parsed.lastFailedParseMessageId,
+        lastFailedParseReceivedAt:
+          parsed.lastFailedParseReceivedAt === undefined
+            ? current.lastFailedParseReceivedAt
+            : parsed.lastFailedParseReceivedAt,
+        pendingArchiveAttemptsByMessageId:
+          parsed.pendingArchiveAttemptsByMessageId ??
+          current.pendingArchiveAttemptsByMessageId,
         lastProcessedAdaptLinksRevision:
           parsed.lastProcessedAdaptLinksRevision ??
           current.lastProcessedAdaptLinksRevision,

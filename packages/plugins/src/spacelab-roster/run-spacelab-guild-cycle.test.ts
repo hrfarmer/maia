@@ -7,7 +7,11 @@ import {
   SYNTHETIC_LAB_ROSTER_EXPORT_CSV_SPACE_SEPARATED,
   SYNTHETIC_LAB_ROSTER_EXPORT_INVALID_ROW,
 } from "./fixture.js";
-import { runSpacelabGuildCycle } from "./run-spacelab-guild-cycle.js";
+import {
+  MAX_PENDING_ARCHIVE_ATTEMPTS,
+  runSpacelabGuildCycle,
+  shouldAttemptRosterParse,
+} from "./run-spacelab-guild-cycle.js";
 import { startSpacelabMinutePoll } from "./spacelab-minute-poll.js";
 import { FakeGraphMailbox } from "./test-fake-graph-mailbox.js";
 import type { SpacelabCycleState } from "./maia-spacelab-plugin-api.js";
@@ -96,6 +100,10 @@ function createMaiaFetch(state: {
             lastError: state.cycle.lastError,
             lastParsedMessageId: state.cycle.lastParsedMessageId,
             pendingArchiveMessageIds: state.cycle.pendingArchiveMessageIds,
+            lastFailedParseMessageId: state.cycle.lastFailedParseMessageId,
+            lastFailedParseReceivedAt: state.cycle.lastFailedParseReceivedAt,
+            pendingArchiveAttemptsByMessageId:
+              state.cycle.pendingArchiveAttemptsByMessageId,
             adaptLinksRevision: state.cycle.adaptLinksRevision,
             lastProcessedAdaptLinksRevision:
               state.cycle.lastProcessedAdaptLinksRevision,
@@ -117,6 +125,16 @@ function createMaiaFetch(state: {
       }
       if (body.pendingArchiveMessageIds) {
         state.cycle.pendingArchiveMessageIds = body.pendingArchiveMessageIds;
+      }
+      if (body.lastFailedParseMessageId !== undefined) {
+        state.cycle.lastFailedParseMessageId = body.lastFailedParseMessageId;
+      }
+      if (body.lastFailedParseReceivedAt !== undefined) {
+        state.cycle.lastFailedParseReceivedAt = body.lastFailedParseReceivedAt;
+      }
+      if (body.pendingArchiveAttemptsByMessageId !== undefined) {
+        state.cycle.pendingArchiveAttemptsByMessageId =
+          body.pendingArchiveAttemptsByMessageId;
       }
       if (body.lastProcessedAdaptLinksRevision !== undefined) {
         state.cycle.lastProcessedAdaptLinksRevision =
@@ -244,6 +262,9 @@ describe("runSpacelabGuildCycle", () => {
       lastError: null,
       lastParsedMessageId: null,
       pendingArchiveMessageIds: [],
+      lastFailedParseMessageId: null,
+      lastFailedParseReceivedAt: null,
+      pendingArchiveAttemptsByMessageId: {},
       adaptLinksRevision: 0,
       lastProcessedAdaptLinksRevision: 0,
     };
@@ -278,6 +299,9 @@ describe("runSpacelabGuildCycle", () => {
       lastError: null,
       lastParsedMessageId: null,
       pendingArchiveMessageIds: [],
+      lastFailedParseMessageId: null,
+      lastFailedParseReceivedAt: null,
+      pendingArchiveAttemptsByMessageId: {},
       adaptLinksRevision: 0,
       lastProcessedAdaptLinksRevision: 0,
     };
@@ -309,6 +333,9 @@ describe("runSpacelabGuildCycle", () => {
       lastError: null,
       lastParsedMessageId: null,
       pendingArchiveMessageIds: [],
+      lastFailedParseMessageId: null,
+      lastFailedParseReceivedAt: null,
+      pendingArchiveAttemptsByMessageId: {},
       adaptLinksRevision: 0,
       lastProcessedAdaptLinksRevision: 0,
     };
@@ -340,6 +367,9 @@ describe("runSpacelabGuildCycle", () => {
       lastError: null,
       lastParsedMessageId: null,
       pendingArchiveMessageIds: [],
+      lastFailedParseMessageId: null,
+      lastFailedParseReceivedAt: null,
+      pendingArchiveAttemptsByMessageId: {},
       adaptLinksRevision: 0,
       lastProcessedAdaptLinksRevision: 0,
     };
@@ -374,6 +404,9 @@ describe("runSpacelabGuildCycle", () => {
       lastError: null,
       lastParsedMessageId: null,
       pendingArchiveMessageIds: [],
+      lastFailedParseMessageId: null,
+      lastFailedParseReceivedAt: null,
+      pendingArchiveAttemptsByMessageId: {},
       adaptLinksRevision: 0,
       lastProcessedAdaptLinksRevision: 0,
     };
@@ -411,6 +444,9 @@ describe("runSpacelabGuildCycle", () => {
       lastError: null,
       lastParsedMessageId: "seen-msg",
       pendingArchiveMessageIds: [],
+      lastFailedParseMessageId: null,
+      lastFailedParseReceivedAt: null,
+      pendingArchiveAttemptsByMessageId: {},
       adaptLinksRevision: 0,
       lastProcessedAdaptLinksRevision: 0,
     };
@@ -448,6 +484,9 @@ describe("runSpacelabGuildCycle", () => {
       lastError: null,
       lastParsedMessageId: null,
       pendingArchiveMessageIds: [],
+      lastFailedParseMessageId: null,
+      lastFailedParseReceivedAt: null,
+      pendingArchiveAttemptsByMessageId: {},
       adaptLinksRevision: 0,
       lastProcessedAdaptLinksRevision: 0,
     };
@@ -480,6 +519,9 @@ describe("runSpacelabGuildCycle", () => {
       lastError: null,
       lastParsedMessageId: null,
       pendingArchiveMessageIds: [],
+      lastFailedParseMessageId: null,
+      lastFailedParseReceivedAt: null,
+      pendingArchiveAttemptsByMessageId: {},
       adaptLinksRevision: 0,
       lastProcessedAdaptLinksRevision: 0,
     };
@@ -524,6 +566,9 @@ describe("runSpacelabGuildCycle", () => {
       lastError: null,
       lastParsedMessageId: null,
       pendingArchiveMessageIds: [],
+      lastFailedParseMessageId: null,
+      lastFailedParseReceivedAt: null,
+      pendingArchiveAttemptsByMessageId: {},
       adaptLinksRevision: 0,
       lastProcessedAdaptLinksRevision: 0,
     };
@@ -579,6 +624,9 @@ describe("runSpacelabGuildCycle", () => {
       lastError: null,
       lastParsedMessageId: "already-seen",
       pendingArchiveMessageIds: [],
+      lastFailedParseMessageId: null,
+      lastFailedParseReceivedAt: null,
+      pendingArchiveAttemptsByMessageId: {},
       adaptLinksRevision: 0,
       lastProcessedAdaptLinksRevision: 0,
     };
@@ -673,6 +721,9 @@ describe("runSpacelabGuildCycle", () => {
       lastError: null,
       lastParsedMessageId: null,
       pendingArchiveMessageIds: [],
+      lastFailedParseMessageId: null,
+      lastFailedParseReceivedAt: null,
+      pendingArchiveAttemptsByMessageId: {},
       adaptLinksRevision: 0,
       lastProcessedAdaptLinksRevision: 0,
     };
@@ -704,6 +755,9 @@ describe("runSpacelabGuildCycle", () => {
       lastError: null,
       lastParsedMessageId: null,
       pendingArchiveMessageIds: [],
+      lastFailedParseMessageId: null,
+      lastFailedParseReceivedAt: null,
+      pendingArchiveAttemptsByMessageId: {},
       adaptLinksRevision: 0,
       lastProcessedAdaptLinksRevision: 0,
     };
@@ -750,6 +804,9 @@ describe("runSpacelabGuildCycle", () => {
       lastError: null,
       lastParsedMessageId: "old-roster",
       pendingArchiveMessageIds: [],
+      lastFailedParseMessageId: null,
+      lastFailedParseReceivedAt: null,
+      pendingArchiveAttemptsByMessageId: {},
       adaptLinksRevision: 0,
       lastProcessedAdaptLinksRevision: 0,
     };
@@ -795,6 +852,9 @@ describe("runSpacelabGuildCycle", () => {
       lastError: null,
       lastParsedMessageId: null,
       pendingArchiveMessageIds: [],
+      lastFailedParseMessageId: null,
+      lastFailedParseReceivedAt: null,
+      pendingArchiveAttemptsByMessageId: {},
       adaptLinksRevision: 0,
       lastProcessedAdaptLinksRevision: 0,
     };
@@ -833,6 +893,9 @@ describe("runSpacelabGuildCycle", () => {
       lastError: null,
       lastParsedMessageId: null,
       pendingArchiveMessageIds: [],
+      lastFailedParseMessageId: null,
+      lastFailedParseReceivedAt: null,
+      pendingArchiveAttemptsByMessageId: {},
       adaptLinksRevision: 0,
       lastProcessedAdaptLinksRevision: 0,
     };
@@ -872,6 +935,9 @@ describe("runSpacelabGuildCycle", () => {
       lastError: null,
       lastParsedMessageId: null,
       pendingArchiveMessageIds: [],
+      lastFailedParseMessageId: null,
+      lastFailedParseReceivedAt: null,
+      pendingArchiveAttemptsByMessageId: {},
       adaptLinksRevision: 0,
       lastProcessedAdaptLinksRevision: 0,
     };
@@ -892,6 +958,211 @@ describe("runSpacelabGuildCycle", () => {
     });
     assert.equal(ingestCount.value, 1);
     assert.deepEqual(graph.archived, ["any-sender"]);
+  });
+
+  it("processes a newer roster while pending archive on an older message does not block", async () => {
+    const graph = new FakeGraphMailbox();
+    graph.inbox.push(
+      rosterMessage("older", "2026-01-01T00:00:00Z", SYNTHETIC_LAB_ROSTER_EXPORT),
+      rosterMessage("newer", "2026-01-03T00:00:00Z", SYNTHETIC_LAB_ROSTER_EXPORT),
+    );
+    graph.failArchiveFor.add("older");
+    const cycle: SpacelabCycleState = {
+      lastCycleAt: null,
+      lastError: "archive_move_failed",
+      lastParsedMessageId: "older",
+      pendingArchiveMessageIds: ["older"],
+      lastFailedParseMessageId: null,
+      lastFailedParseReceivedAt: null,
+      pendingArchiveAttemptsByMessageId: { older: 2 },
+      adaptLinksRevision: 0,
+      lastProcessedAdaptLinksRevision: 0,
+    };
+    const ingestCount = { value: 0 };
+    await runSpacelabGuildCycle({
+      config: {
+        pluginUrl: "http://127.0.0.1:9",
+        pluginToken: "token",
+        guildId: "guild-1",
+        fetchImpl: createMaiaFetch({
+          cycle,
+          rosterColumn: "Subteam",
+          ingestCount,
+          links: { Alpha: "role-alpha" },
+          rosterRows: [
+            {
+              discordHandle: "user.a",
+              status: "Active",
+              adaptRoleValues: ["Alpha"],
+            },
+          ],
+        }),
+      },
+      graph,
+    });
+    assert.equal(ingestCount.value, 1);
+    assert.equal(cycle.lastParsedMessageId, "newer");
+    assert.ok(cycle.pendingArchiveMessageIds.includes("older"));
+  });
+
+  it("treats Graph 404 on archive as already archived and clears pending", async () => {
+    const graph = new FakeGraphMailbox();
+    graph.inbox.push(
+      rosterMessage("stale", "2026-01-01T00:00:00Z", SYNTHETIC_LAB_ROSTER_EXPORT),
+    );
+    graph.notFoundArchiveFor.add("stale");
+    const cycle: SpacelabCycleState = {
+      lastCycleAt: null,
+      lastError: "archive_move_failed",
+      lastParsedMessageId: "stale",
+      pendingArchiveMessageIds: ["stale"],
+      lastFailedParseMessageId: null,
+      lastFailedParseReceivedAt: null,
+      pendingArchiveAttemptsByMessageId: {},
+      adaptLinksRevision: 0,
+      lastProcessedAdaptLinksRevision: 0,
+    };
+    await runSpacelabGuildCycle({
+      config: {
+        pluginUrl: "http://127.0.0.1:9",
+        pluginToken: "token",
+        guildId: "guild-1",
+        fetchImpl: createMaiaFetch({
+          cycle,
+          rosterColumn: "Subteam",
+          rosterRows: [
+            {
+              discordHandle: "user.a",
+              status: "Active",
+              adaptRoleValues: ["Alpha"],
+            },
+          ],
+        }),
+      },
+      graph,
+    });
+    assert.deepEqual(cycle.pendingArchiveMessageIds, []);
+  });
+
+  it("drops pending archive ids after capped retries with archive_gave_up", async () => {
+    const graph = new FakeGraphMailbox();
+    graph.failArchiveFor.add("stuck");
+    const cycle: SpacelabCycleState = {
+      lastCycleAt: null,
+      lastError: "archive_move_failed",
+      lastParsedMessageId: "done",
+      pendingArchiveMessageIds: ["stuck"],
+      lastFailedParseMessageId: null,
+      lastFailedParseReceivedAt: null,
+      pendingArchiveAttemptsByMessageId: {
+        stuck: MAX_PENDING_ARCHIVE_ATTEMPTS - 1,
+      },
+      adaptLinksRevision: 0,
+      lastProcessedAdaptLinksRevision: 0,
+    };
+    const lines: string[] = [];
+    const originalLog = console.log;
+    console.log = (line: string) => {
+      lines.push(line);
+    };
+    try {
+      await runSpacelabGuildCycle({
+        config: {
+          pluginUrl: "http://127.0.0.1:9",
+          pluginToken: "token",
+          guildId: "guild-1",
+          fetchImpl: createMaiaFetch({
+            cycle,
+            rosterColumn: "Subteam",
+            rosterRows: [
+              {
+                discordHandle: "user.a",
+                status: "Active",
+                adaptRoleValues: ["Alpha"],
+              },
+            ],
+          }),
+        },
+        graph,
+      });
+    } finally {
+      console.log = originalLog;
+    }
+    assert.deepEqual(cycle.pendingArchiveMessageIds, []);
+    assert.ok(lines.some((line) => line.includes("archive_gave_up")));
+  });
+
+  it("does not re-parse a failed roster until a newer message arrives", async () => {
+    const graph = new FakeGraphMailbox();
+    graph.inbox.push(
+      rosterMessage(
+        "bad",
+        "2026-01-02T00:00:00Z",
+        SYNTHETIC_LAB_ROSTER_EXPORT_INVALID_ROW,
+      ),
+    );
+    const cycle: SpacelabCycleState = {
+      lastCycleAt: null,
+      lastError: null,
+      lastParsedMessageId: null,
+      pendingArchiveMessageIds: [],
+      lastFailedParseMessageId: null,
+      lastFailedParseReceivedAt: null,
+      pendingArchiveAttemptsByMessageId: {},
+      adaptLinksRevision: 0,
+      lastProcessedAdaptLinksRevision: 0,
+    };
+    const ingestCount = { value: 0 };
+    const config = {
+      pluginUrl: "http://127.0.0.1:9",
+      pluginToken: "token",
+      guildId: "guild-1",
+      fetchImpl: createMaiaFetch({
+        cycle,
+        rosterColumn: "Subteam",
+        ingestCount,
+      }),
+    };
+    await runSpacelabGuildCycle({ config, graph });
+    assert.equal(ingestCount.value, 0);
+    assert.equal(cycle.lastFailedParseMessageId, "bad");
+
+    ingestCount.value = 0;
+    await runSpacelabGuildCycle({ config, graph });
+    assert.equal(ingestCount.value, 0);
+
+    graph.inbox.push(
+      rosterMessage("good", "2026-01-03T00:00:00Z", SYNTHETIC_LAB_ROSTER_EXPORT),
+    );
+    config.fetchImpl = createMaiaFetch({
+      cycle,
+      rosterColumn: "Subteam",
+      ingestCount,
+      links: { Alpha: "role-alpha" },
+    });
+    await runSpacelabGuildCycle({ config, graph });
+    assert.equal(ingestCount.value, 1);
+    assert.equal(cycle.lastParsedMessageId, "good");
+  });
+
+  it("shouldAttemptRosterParse skips the last failed message id", () => {
+    const message = rosterMessage(
+      "bad",
+      "2026-01-02T00:00:00Z",
+      SYNTHETIC_LAB_ROSTER_EXPORT_INVALID_ROW,
+    );
+    const cycle: SpacelabCycleState = {
+      lastCycleAt: null,
+      lastError: null,
+      lastParsedMessageId: null,
+      pendingArchiveMessageIds: [],
+      lastFailedParseMessageId: "bad",
+      lastFailedParseReceivedAt: "2026-01-02T00:00:00Z",
+      pendingArchiveAttemptsByMessageId: {},
+      adaptLinksRevision: 0,
+      lastProcessedAdaptLinksRevision: 0,
+    };
+    assert.equal(shouldAttemptRosterParse(message, cycle, 0), false);
   });
 
   it("skips cycles for disabled guilds without calling Discord role APIs", async () => {

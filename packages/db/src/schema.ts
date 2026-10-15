@@ -274,6 +274,11 @@ export const spacelabGuildCycleState = pgTable("spacelab_guild_cycle_state", {
   pendingArchiveMessageIdsJson: text("pending_archive_message_ids_json")
     .notNull()
     .default("[]"),
+  lastFailedParseMessageId: text("last_failed_parse_message_id"),
+  lastFailedParseReceivedAt: text("last_failed_parse_received_at"),
+  pendingArchiveAttemptsJson: text("pending_archive_attempts_json")
+    .notNull()
+    .default("{}"),
   adaptLinksRevision: integer("adapt_links_revision").notNull().default(0),
   lastProcessedAdaptLinksRevision: integer("last_processed_adapt_links_revision")
     .notNull()

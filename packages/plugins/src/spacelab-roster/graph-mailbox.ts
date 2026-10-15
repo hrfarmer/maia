@@ -11,6 +11,15 @@ export interface GraphMailboxListInboxOptions {
   fromAddress?: string | null;
 }
 
+export class GraphMoveMessageError extends Error {
+  readonly status: number;
+
+  constructor(status: number) {
+    super(`graph_move_to_archive_failed:${status}`);
+    this.status = status;
+  }
+}
+
 export interface GraphMailboxClient {
   listInboxMessages(
     accessToken: string,
@@ -116,7 +125,7 @@ export function createGraphMailboxClient(input: {
         },
       );
       if (!response.ok) {
-        throw new Error(`graph_move_to_archive_failed:${response.status}`);
+        throw new GraphMoveMessageError(response.status);
       }
     },
   };

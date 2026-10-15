@@ -127,6 +127,13 @@
       "when": 1761700000000,
       "tag": "0017_spacelab_roster_sender",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1761800000000,
+      "tag": "0018_spacelab_cycle_parse_archive",
+      "breakpoints": true
     }
   ]
 }

@@ -5,6 +5,9 @@ export interface SpacelabCycleState {
   lastError: string | null;
   lastParsedMessageId: string | null;
   pendingArchiveMessageIds: string[];
+  lastFailedParseMessageId: string | null;
+  lastFailedParseReceivedAt: string | null;
+  pendingArchiveAttemptsByMessageId: Record<string, number>;
   adaptLinksRevision: number;
   lastProcessedAdaptLinksRevision: number;
 }
@@ -99,6 +102,9 @@ export async function fetchSpacelabCycleState(
     lastError?: string | null;
     lastParsedMessageId?: string | null;
     pendingArchiveMessageIds?: string[];
+    lastFailedParseMessageId?: string | null;
+    lastFailedParseReceivedAt?: string | null;
+    pendingArchiveAttemptsByMessageId?: Record<string, number>;
     adaptLinksRevision?: number;
     lastProcessedAdaptLinksRevision?: number;
   };
@@ -107,6 +113,10 @@ export async function fetchSpacelabCycleState(
     lastError: body.lastError ?? null,
     lastParsedMessageId: body.lastParsedMessageId ?? null,
     pendingArchiveMessageIds: body.pendingArchiveMessageIds ?? [],
+    lastFailedParseMessageId: body.lastFailedParseMessageId ?? null,
+    lastFailedParseReceivedAt: body.lastFailedParseReceivedAt ?? null,
+    pendingArchiveAttemptsByMessageId:
+      body.pendingArchiveAttemptsByMessageId ?? {},
     adaptLinksRevision: body.adaptLinksRevision ?? 0,
     lastProcessedAdaptLinksRevision: body.lastProcessedAdaptLinksRevision ?? 0,
   };
@@ -130,6 +140,9 @@ export async function saveSpacelabCycleState(
         lastError: patch.lastError,
         lastParsedMessageId: patch.lastParsedMessageId,
         pendingArchiveMessageIds: patch.pendingArchiveMessageIds,
+        lastFailedParseMessageId: patch.lastFailedParseMessageId,
+        lastFailedParseReceivedAt: patch.lastFailedParseReceivedAt,
+        pendingArchiveAttemptsByMessageId: patch.pendingArchiveAttemptsByMessageId,
         lastProcessedAdaptLinksRevision: patch.lastProcessedAdaptLinksRevision,
       }),
     },
