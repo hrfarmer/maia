@@ -11,6 +11,9 @@ export interface StoredSpacelabCycleState {
   lastError: string | null;
   lastParsedMessageId: string | null;
   pendingArchiveMessageIds: string[];
+  lastFailedParseMessageId: string | null;
+  lastFailedParseReceivedAt: string | null;
+  pendingArchiveAttemptsByMessageId: Record<string, number>;
   adaptLinksRevision: number;
   lastProcessedAdaptLinksRevision: number;
 }
@@ -27,9 +30,35 @@ const defaultCycleState = (): StoredSpacelabCycleState => ({
   lastError: null,
   lastParsedMessageId: null,
   pendingArchiveMessageIds: [],
+  lastFailedParseMessageId: null,
+  lastFailedParseReceivedAt: null,
+  pendingArchiveAttemptsByMessageId: {},
   adaptLinksRevision: 0,
   lastProcessedAdaptLinksRevision: 0,
 });
+
+function parsePendingArchiveAttempts(
+  raw: string | null | undefined,
+): Record<string, number> {
+  if (!raw) {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return {};
+    }
+    const out: Record<string, number> = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      if (typeof value === "number" && Number.isFinite(value)) {
+        out[key] = value;
+      }
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
 
 function parsePendingArchiveIds(raw: string | null | undefined): string[] {
   if (!raw) {
@@ -55,6 +84,11 @@ function rowToState(
     lastParsedMessageId: row.lastParsedMessageId,
     pendingArchiveMessageIds: parsePendingArchiveIds(
       row.pendingArchiveMessageIdsJson,
+    ),
+    lastFailedParseMessageId: row.lastFailedParseMessageId ?? null,
+    lastFailedParseReceivedAt: row.lastFailedParseReceivedAt ?? null,
+    pendingArchiveAttemptsByMessageId: parsePendingArchiveAttempts(
+      row.pendingArchiveAttemptsJson,
     ),
     adaptLinksRevision: row.adaptLinksRevision,
     lastProcessedAdaptLinksRevision: row.lastProcessedAdaptLinksRevision,
@@ -94,6 +128,11 @@ export async function saveSpacelabGuildCycleState(
       pendingArchiveMessageIdsJson: JSON.stringify(
         next.pendingArchiveMessageIds,
       ),
+      lastFailedParseMessageId: next.lastFailedParseMessageId,
+      lastFailedParseReceivedAt: next.lastFailedParseReceivedAt,
+      pendingArchiveAttemptsJson: JSON.stringify(
+        next.pendingArchiveAttemptsByMessageId,
+      ),
       adaptLinksRevision: next.adaptLinksRevision,
       lastProcessedAdaptLinksRevision: next.lastProcessedAdaptLinksRevision,
     })
@@ -105,6 +144,11 @@ export async function saveSpacelabGuildCycleState(
         lastParsedMessageId: next.lastParsedMessageId,
         pendingArchiveMessageIdsJson: JSON.stringify(
           next.pendingArchiveMessageIds,
+        ),
+        lastFailedParseMessageId: next.lastFailedParseMessageId,
+        lastFailedParseReceivedAt: next.lastFailedParseReceivedAt,
+        pendingArchiveAttemptsJson: JSON.stringify(
+          next.pendingArchiveAttemptsByMessageId,
         ),
         adaptLinksRevision: next.adaptLinksRevision,
         lastProcessedAdaptLinksRevision: next.lastProcessedAdaptLinksRevision,

@@ -6,10 +6,14 @@ import {
   SYNTHETIC_LAB_ROSTER_EXPORT_CSV_INVALID_ROW,
   SYNTHETIC_LAB_ROSTER_EXPORT_CSV_SPACE_SEPARATED,
   SYNTHETIC_LAB_ROSTER_EXPORT_CSV_SPACE_SEPARATED_MULTIWORD_TITLE,
+  SYNTHETIC_LAB_ROSTER_EXPORT_CSV_WRAPPED_QUOTE_BEFORE_COMMA,
+  SYNTHETIC_LAB_ROSTER_EXPORT_CSV_WRAPPED_UNQUOTED_FIELD,
   SYNTHETIC_LAB_ROSTER_EXPORT_INVALID_ROW,
   SYNTHETIC_LAB_ROSTER_EXPORT_PRODUCTION_SHAPE,
   SYNTHETIC_LAB_ROSTER_EXPORT_PRODUCTION_SHAPE_WITH_SKIPPED_ROWS,
   buildProductionShapeLabRosterExport,
+  injectGraphLikeLineWraps,
+  injectTextAt,
   PRODUCTION_SHAPE_LAB_ROSTER_HEADERS,
 } from "./fixture.js";
 import {
@@ -17,6 +21,7 @@ import {
   labRosterExportHeaders,
   labRosterNotRecognizedReason,
   normalizeLabRosterMessageBody,
+  logLabRosterParseStructure,
   parseLabRosterMessage,
   rosterStatusIsActive,
 } from "./parse.js";
@@ -148,6 +153,31 @@ describe("parseLabRosterMessage", () => {
     }
     assert.equal(parsed.rows.length, 2);
     assert.deepEqual(parsed.adaptRoleValues, ["Alpha", "Beta", "Delta", "Gamma"]);
+  });
+
+  it("tolerates line breaks between a closing quote and the next comma", () => {
+    const parsed = parseLabRosterMessage(
+      SYNTHETIC_LAB_ROSTER_EXPORT_CSV_WRAPPED_QUOTE_BEFORE_COMMA,
+      "Subteam",
+    );
+    assert.equal(parsed.ok, true);
+    if (!parsed.ok) {
+      return;
+    }
+    assert.equal(parsed.rows.length, 2);
+    assert.deepEqual(parsed.adaptRoleValues, ["Alpha", "Beta", "Delta", "Gamma"]);
+  });
+
+  it("joins wrapped unquoted field segments split across a line break", () => {
+    const parsed = parseLabRosterMessage(
+      SYNTHETIC_LAB_ROSTER_EXPORT_CSV_WRAPPED_UNQUOTED_FIELD,
+      "Subteam",
+    );
+    assert.equal(parsed.ok, true);
+    if (!parsed.ok) {
+      return;
+    }
+    assert.equal(parsed.rows.length, 2);
   });
 
   it("does not treat unquoted spaces inside a field as record boundaries", () => {
@@ -283,6 +313,116 @@ describe("parseLabRosterMessage", () => {
       return;
     }
     assert.equal(parsed.reason, "roster_no_rows");
+  });
+
+  function parsedRowKeys(
+    parsed: Extract<ReturnType<typeof parseLabRosterMessage>, { ok: true }>,
+  ): string {
+    return parsed.rows
+      .map(
+        (row) =>
+          `${row.discordHandle}:${row.status}:${row.adaptRoleValues.slice().sort().join("+")}`,
+      )
+      .sort()
+      .join("|");
+  }
+
+  it("matches unwrapped rows after Graph-like 998-char line wraps on production shape", () => {
+    const baseline = parseLabRosterMessage(
+      SYNTHETIC_LAB_ROSTER_EXPORT_PRODUCTION_SHAPE,
+      "Subteam",
+    );
+    assert.equal(baseline.ok, true);
+    if (!baseline.ok) {
+      return;
+    }
+    const wrapped = injectGraphLikeLineWraps(
+      SYNTHETIC_LAB_ROSTER_EXPORT_PRODUCTION_SHAPE,
+      998,
+    );
+    const parsed = parseLabRosterMessage(wrapped, "Subteam");
+    assert.equal(parsed.ok, true);
+    if (!parsed.ok) {
+      return;
+    }
+    assert.equal(parsedRowKeys(parsed), parsedRowKeys(baseline));
+  });
+
+  it("matches unwrapped rows when wraps are injected at comma-adjacent positions", () => {
+    const baseline = parseLabRosterMessage(
+      SYNTHETIC_LAB_ROSTER_EXPORT_CSV,
+      "Subteam",
+    );
+    assert.equal(baseline.ok, true);
+    if (!baseline.ok) {
+      return;
+    }
+    const commaIndexes = [];
+    for (let index = 0; index < SYNTHETIC_LAB_ROSTER_EXPORT_CSV.length; index += 1) {
+      if (SYNTHETIC_LAB_ROSTER_EXPORT_CSV[index] === ",") {
+        commaIndexes.push(index);
+      }
+    }
+    for (const index of [commaIndexes[3]!, commaIndexes[8]!, commaIndexes[15]!]) {
+      for (const insert of ["\n", "\r\n", " "]) {
+        const wrapped = injectTextAt(SYNTHETIC_LAB_ROSTER_EXPORT_CSV, index, insert);
+        const parsed = parseLabRosterMessage(wrapped, "Subteam");
+        assert.equal(parsed.ok, true, `insert at ${index} ${JSON.stringify(insert)}`);
+        if (!parsed.ok) {
+          return;
+        }
+        assert.equal(parsedRowKeys(parsed), parsedRowKeys(baseline));
+      }
+    }
+  });
+
+  it("logs field index, record index, and char classes when table parsing fails", () => {
+    const lines: string[] = [];
+    const originalLog = console.log;
+    console.log = (line: string) => {
+      lines.push(line);
+    };
+    try {
+      logLabRosterParseStructure(
+        {
+          headerColumnCount: 42,
+          recordCount: 0,
+          skipped_missing_discord_handle: 0,
+          skipped_missing_status: 0,
+          rejectedRowReasons: {
+            missing_title: 0,
+            missing_member: 0,
+            missing_github_handle: 0,
+            missing_txst_email: 0,
+          },
+        },
+        {
+          reason: "Unexpected whitespace inside CSV record",
+          fieldIndex: 9,
+          recordIndex: 3,
+          pos: 8,
+          sourceText: 'a,b,"c", d',
+        },
+      );
+    } finally {
+      console.log = originalLog;
+    }
+    const structural = lines.find((line) => line.includes("spacelabRosterParse"));
+    assert.ok(structural);
+    const payload = JSON.parse(structural!) as {
+      spacelabRosterParse: {
+        failureFieldIndex: number | null;
+        failureRecordIndex: number | null;
+        failureCharAt: string | null;
+        failureCharBefore: string | null;
+        failureCharAfter: string | null;
+      };
+    };
+    assert.equal(payload.spacelabRosterParse.failureFieldIndex, 9);
+    assert.equal(payload.spacelabRosterParse.failureRecordIndex, 3);
+    assert.equal(payload.spacelabRosterParse.failureCharAt, "space");
+    assert.equal(payload.spacelabRosterParse.failureCharBefore, "comma");
+    assert.equal(payload.spacelabRosterParse.failureCharAfter, "other");
   });
 
   it("reports non-PII reasons when a message is not a roster export", () => {

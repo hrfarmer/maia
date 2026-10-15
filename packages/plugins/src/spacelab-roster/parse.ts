@@ -2,6 +2,53 @@ import type { ParsedRosterRow, ParseLabRosterResult } from "./types.js";
 
 class RosterParseError extends Error {
   readonly tag = "RosterParseError";
+  readonly fieldIndex?: number;
+  readonly recordIndex?: number;
+  readonly pos?: number;
+
+  constructor(
+    message: string,
+    details?: { fieldIndex?: number; recordIndex?: number; pos?: number },
+  ) {
+    super(message);
+    this.fieldIndex = details?.fieldIndex;
+    this.recordIndex = details?.recordIndex;
+    this.pos = details?.pos;
+  }
+}
+
+function charClassAt(text: string, pos: number): string {
+  if (pos < 0 || pos >= text.length) {
+    return "eof";
+  }
+  const char = text[pos]!;
+  if (char === ",") {
+    return "comma";
+  }
+  if (char === '"') {
+    return "quote";
+  }
+  if (char === "\n") {
+    return "lf";
+  }
+  if (char === "\r") {
+    return "cr";
+  }
+  if (char === " " || char === "\t") {
+    return "space";
+  }
+  return "other";
+}
+
+function failureCharContext(text: string, pos: number | undefined) {
+  if (pos === undefined) {
+    return { at: null, before: null, after: null };
+  }
+  return {
+    at: charClassAt(text, pos),
+    before: charClassAt(text, pos - 1),
+    after: charClassAt(text, pos + 1),
+  };
 }
 
 function stripUtf8Bom(message: string): string {
@@ -98,11 +145,19 @@ function readCommaRecord(
   text: string,
   startPos: number,
   fieldCount: number | "header",
+  recordIndex?: number,
 ): { fields: string[]; nextPos: number } {
   let pos = startPos;
   const fields: string[] = [];
+  const recordComplete = () =>
+    fieldCount !== "header" && fields.length >= fieldCount;
+
+  const throwParseError = (message: string, fieldIndex: number) => {
+    throw new RosterParseError(message, { fieldIndex, recordIndex, pos });
+  };
+
   while (true) {
-    if (fieldCount !== "header" && fields.length >= fieldCount) {
+    if (recordComplete()) {
       break;
     }
     const isLastFieldInRecord =
@@ -128,22 +183,58 @@ function readCommaRecord(
     if (pos >= text.length) {
       break;
     }
-    const nextChar = text[pos]!;
-    if (nextChar === ",") {
-      pos += 1;
-      continue;
-    }
-    if (isWhitespace(nextChar)) {
-      if (fieldCount === "header" || fields.length === fieldCount) {
+    if (recordComplete() || fieldCount === "header") {
+      if (isWhitespace(text[pos]!)) {
         pos = skipWhitespace(text, pos);
         break;
       }
-      throw new RosterParseError("Unexpected whitespace inside CSV record");
+      if (fieldCount === "header" && text[pos] === ",") {
+        pos += 1;
+        continue;
+      }
+      if (recordComplete()) {
+        break;
+      }
     }
-    if (fieldCount !== "header" && fields.length === fieldCount) {
-      break;
+
+    if (text[pos] === ",") {
+      pos += 1;
+      continue;
     }
-    throw new RosterParseError("Malformed CSV record");
+
+    if (isWhitespace(text[pos]!)) {
+      const wsStart = pos;
+      const afterWs = skipWhitespace(text, pos);
+      if (afterWs >= text.length) {
+        pos = afterWs;
+        break;
+      }
+      if (text[afterWs] === ",") {
+        pos = afterWs + 1;
+        continue;
+      }
+      if (text[afterWs] === '"') {
+        pos = afterWs;
+        continue;
+      }
+      if (recordComplete()) {
+        pos = afterWs;
+        break;
+      }
+      const fieldIndex = fields.length - 1;
+      const continued = readCommaSeparatedField(text, afterWs, {
+        lastFieldInRecord: isLastFieldInRecord,
+      });
+      fields[fieldIndex] =
+        `${fields[fieldIndex] ?? ""}${continued.field}`.trim();
+      pos = continued.nextPos;
+      if (pos < text.length && text[pos] === ",") {
+        pos += 1;
+      }
+      continue;
+    }
+
+    throwParseError("Malformed CSV record", fields.length);
   }
   return { fields, nextPos: pos };
 }
@@ -260,28 +351,87 @@ function readUnquotedHeaderFields(
   return { headers: fields, nextPos: pos };
 }
 
+function readHeaderCommaField(
+  text: string,
+  pos: number,
+): { field: string; nextPos: number } {
+  let field = "";
+  let index = pos;
+  while (index < text.length) {
+    const char = text[index]!;
+    if (char === "," || char === " " || char === "\n") {
+      break;
+    }
+    field += char;
+    index += 1;
+  }
+  return { field, nextPos: index };
+}
+
+function readCommaHeaderRecord(
+  text: string,
+  startPos: number,
+): { headers: string[]; nextPos: number } {
+  let pos = startPos;
+  const fields: string[] = [];
+  while (true) {
+    pos = skipWhitespace(text, pos);
+    if (pos >= text.length) {
+      break;
+    }
+    const { field, nextPos } = readHeaderCommaField(text, pos);
+    if (field === "" && nextPos < text.length && text[nextPos] === ",") {
+      pos = nextPos + 1;
+      continue;
+    }
+    fields.push(field.trim());
+    pos = nextPos;
+    if (pos >= text.length) {
+      break;
+    }
+    if (text[pos] === ",") {
+      pos += 1;
+      continue;
+    }
+    if (isWhitespace(text[pos]!)) {
+      const wsStart = pos;
+      const afterWs = skipWhitespace(text, pos);
+      if (afterWs >= text.length) {
+        pos = afterWs;
+        break;
+      }
+      if (text[afterWs] === ",") {
+        pos = afterWs + 1;
+        continue;
+      }
+      if (text[afterWs] === '"') {
+        pos = afterWs;
+        break;
+      }
+      const fieldIndex = fields.length - 1;
+      const continued = readHeaderCommaField(text, afterWs);
+      fields[fieldIndex] =
+        `${fields[fieldIndex] ?? ""}${continued.field}`.trim();
+      pos = continued.nextPos;
+      continue;
+    }
+    break;
+  }
+  return { headers: fields, nextPos: pos };
+}
+
 function parseCommaDelimitedTable(message: string): LabRosterTable | null {
   const normalized = normalizeLabRosterMessageBody(message);
   if (normalized === "") {
     return null;
   }
-  const firstLineBreak = normalized.indexOf("\n");
-  const headerProbe =
-    firstLineBreak === -1 ? normalized : normalized.slice(0, firstLineBreak);
-  if (detectDelimiter(headerProbe) !== ",") {
+  if (detectDelimiter(normalized.slice(0, 512)) !== ",") {
     return null;
   }
 
-  let headers: string[];
-  let dataStartPos: number;
-  if (firstLineBreak === -1) {
-    const headerRecord = readUnquotedHeaderFields(normalized, 0);
-    headers = headerRecord.headers;
-    dataStartPos = headerRecord.nextPos;
-  } else {
-    headers = splitCsvRow(headerProbe).map((cell) => cell.trim());
-    dataStartPos = skipWhitespace(normalized, firstLineBreak + 1);
-  }
+  const headerRecord = readCommaHeaderRecord(normalized, 0);
+  const headers = headerRecord.headers;
+  const dataStartPos = headerRecord.nextPos;
 
   if (headers.length === 0) {
     return null;
@@ -289,22 +439,45 @@ function parseCommaDelimitedTable(message: string): LabRosterTable | null {
   const fieldCount = headers.length;
   const records: string[][] = [];
   let pos = dataStartPos;
+  let recordIndex = 0;
   while (pos < normalized.length) {
     pos = skipWhitespace(normalized, pos);
     if (pos >= normalized.length) {
       break;
     }
-    const record = readCommaRecord(normalized, pos, fieldCount);
+    const record = readCommaRecord(normalized, pos, fieldCount, recordIndex);
     if (record.fields.length === 0) {
       break;
     }
     if (record.fields.length !== fieldCount) {
-      throw new RosterParseError("Wrong field count in roster row");
+      const tailPos = skipWhitespace(normalized, record.nextPos);
+      if (record.fields.length < fieldCount && tailPos >= normalized.length) {
+        break;
+      }
+      throw new RosterParseError("Wrong field count in roster row", {
+        fieldIndex: record.fields.length,
+        recordIndex,
+        pos,
+      });
     }
     records.push(record.fields);
     pos = record.nextPos;
+    recordIndex += 1;
   }
   return { headers, records };
+}
+
+/** @internal Exported for wrap-injection tests only. */
+export function parseLabRosterTableForTests(message: string): LabRosterTable | null {
+  return parseLabRosterTable(message);
+}
+
+/** @internal Exported for wrap-injection tests only. */
+export function readCommaHeaderRecordForTests(
+  text: string,
+  startPos: number,
+): { headers: string[]; nextPos: number } {
+  return readCommaHeaderRecord(text, startPos);
 }
 
 function parseLabRosterTable(message: string): LabRosterTable | null {
@@ -494,7 +667,20 @@ function emptyParseStats(
   };
 }
 
-export function logLabRosterParseStructure(stats: LabRosterParseStats) {
+export function logLabRosterParseStructure(
+  stats: LabRosterParseStats,
+  failure?: {
+    fieldIndex?: number;
+    recordIndex?: number;
+    reason: string;
+    pos?: number;
+    sourceText?: string;
+  },
+) {
+  const charContext =
+    failure?.sourceText !== undefined
+      ? failureCharContext(failure.sourceText, failure.pos)
+      : undefined;
   console.log(
     JSON.stringify({
       spacelabRosterParse: {
@@ -503,6 +689,16 @@ export function logLabRosterParseStructure(stats: LabRosterParseStats) {
         skipped_missing_discord_handle: stats.skipped_missing_discord_handle,
         skipped_missing_status: stats.skipped_missing_status,
         rejectedRowReasons: stats.rejectedRowReasons,
+        ...(failure
+          ? {
+              failureFieldIndex: failure.fieldIndex ?? null,
+              failureRecordIndex: failure.recordIndex ?? null,
+              failureReason: failure.reason,
+              failureCharAt: charContext?.at ?? null,
+              failureCharBefore: charContext?.before ?? null,
+              failureCharAfter: charContext?.after ?? null,
+            }
+          : {}),
       },
     }),
   );
@@ -537,10 +733,18 @@ export function parseLabRosterMessage(
   }
 
   let table: LabRosterTable | null;
+  const normalizedForFailure = normalizeLabRosterMessageBody(message);
   try {
     table = parseLabRosterTable(message);
   } catch (error) {
     if (error instanceof RosterParseError) {
+      logLabRosterParseStructure(emptyParseStats(0, 0), {
+        fieldIndex: error.fieldIndex,
+        recordIndex: error.recordIndex,
+        reason: error.message,
+        pos: error.pos,
+        sourceText: normalizedForFailure,
+      });
       return { ok: false, reason: "invalid_row" };
     }
     throw error;

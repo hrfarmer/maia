@@ -4,6 +4,7 @@ import {
   parseLabRosterMessage,
 } from "./parse.js";
 import type { GraphMailboxClient, GraphMailboxMessage } from "./graph-mailbox.js";
+import { GraphMoveMessageError } from "./graph-mailbox.js";
 import {
   fetchGuildMailboxAccessToken,
   fetchGuildRosterColumn,
@@ -12,6 +13,7 @@ import {
   ingestSpacelabRosterMessageViaApi,
   saveSpacelabCycleState,
   type MaiaSpacelabPluginApiConfig,
+  type SpacelabCycleState,
 } from "./maia-spacelab-plugin-api.js";
 import {
   resolveGraphMessageFromAddress,
@@ -20,6 +22,8 @@ import {
 import { fetchSpacelabReconcileState } from "./maia-discord-role-api.js";
 import { runSpacelabGuildReconcile } from "./run-spacelab-reconcile.js";
 import type { SpacelabReconcilePassMode } from "./types.js";
+
+export const MAX_PENDING_ARCHIVE_ATTEMPTS = 5;
 
 export interface RunSpacelabGuildCycleResult {
   ok: boolean;
@@ -99,22 +103,88 @@ function inboxMessagesForRosterSender(
   );
 }
 
-async function archiveMessages(
+function logRosterParseFailed(reason: string) {
+  console.log(JSON.stringify({ spacelabRosterCycle: { event: "roster_parse_failed", reason } }));
+}
+
+function logArchiveGaveUp(messageId: string, attempts: number) {
+  console.log(
+    JSON.stringify({
+      spacelabRosterCycle: {
+        event: "archive_gave_up",
+        messageId,
+        attempts,
+      },
+    }),
+  );
+}
+
+export function shouldAttemptRosterParse(
+  newestRoster: GraphMailboxMessage,
+  cycleState: SpacelabCycleState,
+  savedRosterRowCount: number,
+): boolean {
+  if (
+    newestRoster.id === cycleState.lastParsedMessageId &&
+    savedRosterRowCount > 0
+  ) {
+    return false;
+  }
+  if (
+    newestRoster.id === cycleState.lastFailedParseMessageId &&
+    newestRoster.receivedDateTime === cycleState.lastFailedParseReceivedAt
+  ) {
+    return false;
+  }
+  if (
+    cycleState.lastFailedParseReceivedAt &&
+    newestRoster.receivedDateTime < cycleState.lastFailedParseReceivedAt
+  ) {
+    return false;
+  }
+  return true;
+}
+
+async function archiveMessagesBestEffort(
   graph: GraphMailboxClient,
   accessToken: string,
   messageIds: string[],
-): Promise<{ archived: string[]; failed: string[] }> {
+  priorAttempts: Record<string, number>,
+): Promise<{
+  archived: string[];
+  stillPending: string[];
+  attemptsByMessageId: Record<string, number>;
+}> {
   const archived: string[] = [];
-  const failed: string[] = [];
+  const stillPending: string[] = [];
+  const attemptsByMessageId = { ...priorAttempts };
+
   for (const messageId of messageIds) {
+    if (!messageId) {
+      continue;
+    }
     try {
       await graph.moveMessageToArchive(accessToken, messageId);
       archived.push(messageId);
-    } catch {
-      failed.push(messageId);
+      delete attemptsByMessageId[messageId];
+    } catch (error) {
+      if (error instanceof GraphMoveMessageError && error.status === 404) {
+        archived.push(messageId);
+        delete attemptsByMessageId[messageId];
+        continue;
+      }
+      const nextAttempts = (attemptsByMessageId[messageId] ?? 0) + 1;
+      attemptsByMessageId[messageId] = nextAttempts;
+      if (nextAttempts >= MAX_PENDING_ARCHIVE_ATTEMPTS) {
+        logArchiveGaveUp(messageId, nextAttempts);
+        delete attemptsByMessageId[messageId];
+        continue;
+      }
+      stillPending.push(messageId);
     }
   }
-  return { archived, failed };
+
+  return { archived, stillPending, attemptsByMessageId };
 }
 
 async function recordCycleEnd(
@@ -133,7 +203,7 @@ export async function runSpacelabGuildCycle(input: {
   forceFullPass?: boolean;
 }): Promise<RunSpacelabGuildCycleResult> {
   const { config, graph } = input;
-  const cycleState = await fetchSpacelabCycleState(config);
+  let cycleState = await fetchSpacelabCycleState(config);
 
   const tokenResult = await fetchGuildMailboxAccessToken(config);
   if (!tokenResult.ok) {
@@ -152,26 +222,6 @@ export async function runSpacelabGuildCycle(input: {
   }
   const accessToken = tokenResult.accessToken;
 
-  if (cycleState.pendingArchiveMessageIds.length > 0) {
-    const { failed } = await archiveMessages(
-      graph,
-      accessToken,
-      cycleState.pendingArchiveMessageIds,
-    );
-    if (failed.length > 0) {
-      await recordCycleEnd(config, {
-        lastError: "archive_move_failed",
-        pendingArchiveMessageIds: failed,
-      });
-      return { ok: false, skippedReason: "pending_archive" };
-    }
-    await recordCycleEnd(config, {
-      lastError: null,
-      pendingArchiveMessageIds: [],
-    });
-    return { ok: true, skippedReason: "pending_archive", archivedMessageIds: [] };
-  }
-
   const rosterColumn = await fetchGuildRosterColumn(config);
   if (!rosterColumn) {
     await recordCycleEnd(config, { lastError: "roster_column_not_configured" });
@@ -189,6 +239,26 @@ export async function runSpacelabGuildCycle(input: {
     rosterColumn,
   );
   const newestRoster = rosterMessages[0];
+
+  if (cycleState.pendingArchiveMessageIds.length > 0) {
+    const archiveResult = await archiveMessagesBestEffort(
+      graph,
+      accessToken,
+      cycleState.pendingArchiveMessageIds,
+      cycleState.pendingArchiveAttemptsByMessageId,
+    );
+    cycleState = {
+      ...cycleState,
+      pendingArchiveMessageIds: archiveResult.stillPending,
+      pendingArchiveAttemptsByMessageId: archiveResult.attemptsByMessageId,
+    };
+    await recordCycleEnd(config, {
+      lastError: archiveResult.stillPending.length > 0 ? "archive_move_failed" : null,
+      pendingArchiveMessageIds: archiveResult.stillPending,
+      pendingArchiveAttemptsByMessageId: archiveResult.attemptsByMessageId,
+    });
+  }
+
   const reconcileState = await fetchSpacelabReconcileState(config);
   const savedRosterRowCount = reconcileState?.rows.length ?? 0;
 
@@ -196,8 +266,7 @@ export async function runSpacelabGuildCycle(input: {
     cycleState.adaptLinksRevision > cycleState.lastProcessedAdaptLinksRevision;
   const hasNewRoster =
     Boolean(newestRoster) &&
-    (newestRoster!.id !== cycleState.lastParsedMessageId ||
-      savedRosterRowCount === 0);
+    shouldAttemptRosterParse(newestRoster!, cycleState, savedRosterRowCount);
 
   if (!hasNewRoster) {
     const notRosterReason =
@@ -225,9 +294,17 @@ export async function runSpacelabGuildCycle(input: {
 
   const parsed = parseLabRosterMessage(newestRoster!.bodyContent, rosterColumn);
   if (!parsed.ok) {
+    const parseReason =
+      parsed.reason === "roster_no_rows"
+        ? "roster_no_rows"
+        : parsed.reason === "not_recognized"
+          ? "not_recognized"
+          : "invalid_row";
+    logRosterParseFailed(parseReason);
     await recordCycleEnd(config, {
-      lastError:
-        parsed.reason === "roster_no_rows" ? "roster_no_rows" : null,
+      lastError: parsed.reason === "roster_no_rows" ? "roster_no_rows" : null,
+      lastFailedParseMessageId: newestRoster!.id,
+      lastFailedParseReceivedAt: newestRoster!.receivedDateTime,
     });
     return { ok: false, skippedReason: "unparseable_roster" };
   }
@@ -237,7 +314,12 @@ export async function runSpacelabGuildCycle(input: {
     newestRoster!.bodyContent,
   );
   if (!ingested.ok) {
-    await recordCycleEnd(config, { lastError: null });
+    logRosterParseFailed("ingest_rejected");
+    await recordCycleEnd(config, {
+      lastError: null,
+      lastFailedParseMessageId: newestRoster!.id,
+      lastFailedParseReceivedAt: newestRoster!.receivedDateTime,
+    });
     return { ok: false, skippedReason: "unparseable_roster" };
   }
 
@@ -247,17 +329,28 @@ export async function runSpacelabGuildCycle(input: {
   const toArchive = rosterMessages
     .filter((message) => message.receivedDateTime <= newestReceived)
     .map((message) => message.id);
-  const { failed } = await archiveMessages(graph, accessToken, toArchive);
+  const pendingIds = [
+    ...new Set([...cycleState.pendingArchiveMessageIds, ...toArchive]),
+  ];
+  const archiveResult = await archiveMessagesBestEffort(
+    graph,
+    accessToken,
+    pendingIds,
+    cycleState.pendingArchiveAttemptsByMessageId,
+  );
 
   await recordCycleEnd(config, {
-    lastError: failed.length > 0 ? "archive_move_failed" : null,
+    lastError: archiveResult.stillPending.length > 0 ? "archive_move_failed" : null,
     lastParsedMessageId: newestRoster!.id,
-    pendingArchiveMessageIds: failed,
+    lastFailedParseMessageId: null,
+    lastFailedParseReceivedAt: null,
+    pendingArchiveMessageIds: archiveResult.stillPending,
+    pendingArchiveAttemptsByMessageId: archiveResult.attemptsByMessageId,
     lastProcessedAdaptLinksRevision: cycleState.adaptLinksRevision,
   });
 
   return {
     ok: true,
-    archivedMessageIds: toArchive.filter((id) => !failed.includes(id)),
+    archivedMessageIds: archiveResult.archived,
   };
 }
