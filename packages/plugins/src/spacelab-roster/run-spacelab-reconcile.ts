@@ -4,7 +4,11 @@ import {
   saveSpacelabReconcileState,
   type MaiaPluginClientConfig,
 } from "./maia-discord-role-api.js";
-import { runReconcilePass } from "./reconcile-pass.js";
+import {
+  memberMatchesRosterHandle,
+  rowQualifiesForAdaptReconcile,
+  runReconcilePass,
+} from "./reconcile-pass.js";
 import type { SpacelabReconcilePassMode } from "./types.js";
 
 async function reportForceSyncOutcome(
@@ -72,6 +76,56 @@ export async function runSpacelabGuildReconcile(
         : undefined,
   });
   return { ok: true as const, stoppedEarly: result.stoppedEarly };
+}
+
+export async function runSpacelabGuildMemberJoinReconcile(
+  config: MaiaPluginClientConfig,
+  member: { discordUserId: string; username: string },
+) {
+  const state = await fetchSpacelabReconcileState(config);
+  if (!state) {
+    return { ok: true as const, skipped: "no_roster" as const };
+  }
+  const api = createMaiaDiscordRoleApi(config);
+  const links = new Map(Object.entries(state.links));
+  const guildRoleIds = await api.listGuildRoleIds();
+  const matchingRow = state.rows.find((row) =>
+    memberMatchesRosterHandle(member.username, row.discordHandle),
+  );
+  if (
+    !matchingRow ||
+    !rowQualifiesForAdaptReconcile(matchingRow, links, guildRoleIds)
+  ) {
+    return { ok: true as const, skipped: "not_eligible" as const };
+  }
+  const result = await runReconcilePass(
+    {
+      rows: state.rows,
+      rememberedMembers: state.rememberedMembers,
+      links,
+      generalMemberRoleId: state.generalMemberRoleId ?? null,
+      previousAppliedLinks: new Map(
+        Object.entries(state.previousAppliedLinks ?? {}),
+      ),
+      previousAppliedGeneralMemberRoleId:
+        state.previousAppliedGeneralMemberRoleId ?? null,
+      guildRoleIds,
+      failures: state.failures,
+      mode: {
+        kind: "member-join",
+        discordUserId: member.discordUserId,
+        username: member.username,
+      },
+    },
+    api,
+  );
+  await saveSpacelabReconcileState(config, {
+    rows: result.rows,
+    links: state.links,
+    rememberedMembers: result.rememberedMembers,
+    failures: result.failures,
+  });
+  return { ok: true as const, reconciled: true as const };
 }
 
 export async function runSpacelabGuildForceSync(

@@ -13,12 +13,12 @@ describe("Space Lab roster plugins tab row", () => {
     pluginId: "spacelab-roster",
     displayName: "Space Lab roster",
     lifetime: "always-on",
-    subscribedEvents: [] as string[],
+    subscribedEvents: ["member.join"] as string[],
     errorMessage: null,
     environment: [{ key: "ROSTER_COLUMN", required: true, secret: false }],
   };
 
-  it("shows always-on Space Lab roster with no events and required ROSTER_COLUMN", () => {
+  it("shows always-on Space Lab roster with member.join and required ROSTER_COLUMN", () => {
     const row = mergeGuildPluginRow({
       plugin: scanPlugin,
       enabled: false,
@@ -26,7 +26,7 @@ describe("Space Lab roster plugins tab row", () => {
     });
     assert.equal(row.displayName, "Space Lab roster");
     assert.equal(row.lifetime, "always-on");
-    assert.deepEqual(row.subscribedEvents, []);
+    assert.deepEqual(row.subscribedEvents, ["member.join"]);
     assert.equal(row.environment[0]?.key, "ROSTER_COLUMN");
     assert.equal(row.environment[0]?.required, true);
     assert.equal(row.environment[0]?.secret, false);

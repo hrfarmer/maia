@@ -789,4 +789,135 @@ describe("runReconcilePass", () => {
       api,
     );
   });
+
+  it("member-join mode grants linked roles and general role without listing guild members", async () => {
+    const calls: Array<{ op: string; userId: string; roleId?: string }> = [];
+    const listGuildMembersCalls = { value: 0 };
+    const api = fakeApi({
+      calls,
+      listGuildMembersCalls,
+      roles: new Map([["uid-a", []]]),
+    });
+    const result = await runReconcilePass(
+      input({
+        generalMemberRoleId: "role-general",
+        rows: [
+          {
+            discordHandle: "User.A",
+            status: "Active",
+            adaptRoleValues: ["Alpha"],
+          },
+        ],
+        mode: {
+          kind: "member-join",
+          discordUserId: "uid-a",
+          username: "user.a",
+        },
+      }),
+      api,
+    );
+    assert.equal(listGuildMembersCalls.value, 0);
+    assert.deepEqual(
+      [...calls].sort((a, b) => a.roleId!.localeCompare(b.roleId!)),
+      [
+        { op: "add", userId: "uid-a", roleId: "role-alpha" },
+        { op: "add", userId: "uid-a", roleId: "role-general" },
+      ],
+    );
+    assert.deepEqual(result.rememberedMembers[0]?.grantedRoleIds?.sort(), [
+      "role-alpha",
+      "role-general",
+    ]);
+  });
+
+  it("member-join mode does nothing for non-roster, inactive, or unmapped joiners", async () => {
+    const calls: Array<{ op: string; userId: string; roleId?: string }> = [];
+    const api = fakeApi({ calls, roles: new Map() });
+    const baseMode = {
+      kind: "member-join" as const,
+      discordUserId: "uid-x",
+      username: "stranger",
+    };
+    await runReconcilePass(
+      input({
+        rows: [
+          {
+            discordHandle: "inactive.user",
+            status: "Inactive",
+            adaptRoleValues: ["Alpha"],
+          },
+          {
+            discordHandle: "unmapped.user",
+            status: "Active",
+            adaptRoleValues: ["Delta"],
+          },
+        ],
+        mode: baseMode,
+      }),
+      api,
+    );
+    await runReconcilePass(
+      input({
+        rows: [
+          {
+            discordHandle: "inactive.user",
+            status: "Inactive",
+            adaptRoleValues: ["Alpha"],
+          },
+        ],
+        mode: {
+          kind: "member-join",
+          discordUserId: "uid-inactive",
+          username: "inactive.user",
+        },
+      }),
+      api,
+    );
+    await runReconcilePass(
+      input({
+        rows: [
+          {
+            discordHandle: "unmapped.user",
+            status: "Active",
+            adaptRoleValues: ["Delta"],
+          },
+        ],
+        mode: {
+          kind: "member-join",
+          discordUserId: "uid-unmapped",
+          username: "unmapped.user",
+        },
+      }),
+      api,
+    );
+    assert.equal(calls.length, 0);
+  });
+
+  it("member-join mode records failures without throwing", async () => {
+    const api = fakeApi({
+      roles: new Map([["uid-a", []]]),
+      addRole: async () => {
+        throw new Error("discord down");
+      },
+    });
+    const result = await runReconcilePass(
+      input({
+        rows: [
+          {
+            discordHandle: "user.a",
+            status: "Active",
+            adaptRoleValues: ["Alpha"],
+          },
+        ],
+        mode: {
+          kind: "member-join",
+          discordUserId: "uid-a",
+          username: "user.a",
+        },
+      }),
+      api,
+    );
+    assert.equal(result.failures.length, 1);
+    assert.equal(result.failures[0]?.attempts, 1);
+  });
 });
