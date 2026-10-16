@@ -301,7 +301,56 @@ interface WorkItem {
   memberKey: string;
 }
 
+function buildMemberJoinWorkItems(input: ReconcilePassInput): WorkItem[] {
+  if (input.mode.kind !== "member-join") {
+    return [];
+  }
+  const discordUserId = input.mode.discordUserId;
+  const username = input.mode.username;
+  if (!discordUserId || !username) {
+    return [];
+  }
+  const row = input.rows.find((item) =>
+    memberMatchesRosterHandle(username, item.discordHandle),
+  );
+  if (
+    !row ||
+    !rowQualifiesForAdaptReconcile(row, input.links, input.guildRoleIds)
+  ) {
+    return [];
+  }
+  const failures = failureMap(input.failures);
+  const memberKey = failureKeyForMember(row.discordHandle, discordUserId);
+  const failure = failures.get(memberKey);
+  if (failure && failure.attempts >= MAX_RECONCILE_MEMBER_ATTEMPTS) {
+    return [];
+  }
+  const qualifiesForGeneral = rowQualifiesForGeneralAdaptMemberRole(
+    row,
+    input.links,
+    input.guildRoleIds,
+  );
+  return [
+    {
+      discordHandle: row.discordHandle,
+      discordUserId,
+      rosterRow: row,
+      desiredLinkedRoleIds: desiredRoleIdsForMember(
+        row.adaptRoleValues,
+        input.links,
+        input.guildRoleIds,
+        input.generalMemberRoleId,
+        qualifiesForGeneral,
+      ),
+      memberKey,
+    },
+  ];
+}
+
 function buildWorkItems(input: ReconcilePassInput): WorkItem[] {
+  if (input.mode.kind === "member-join") {
+    return buildMemberJoinWorkItems(input);
+  }
   const rosterByHandle = new Map<string, SavedRosterRow>();
   for (const row of input.rows) {
     rosterByHandle.set(row.discordHandle.toLowerCase(), row);
@@ -439,14 +488,16 @@ export async function runReconcilePass(
     Array<{ id: string; username: string }>
   >();
   let memberListUnavailable = false;
-  const needsHandleLookup = workItems.some((item) => {
-    const storedUserId = storedUserIdForHandle(
-      item.discordHandle,
-      input.rows,
-      input.rememberedMembers,
-    );
-    return !(item.discordUserId ?? storedUserId);
-  });
+  const needsHandleLookup =
+    input.mode.kind !== "member-join" &&
+    workItems.some((item) => {
+      const storedUserId = storedUserIdForHandle(
+        item.discordHandle,
+        input.rows,
+        input.rememberedMembers,
+      );
+      return !(item.discordUserId ?? storedUserId);
+    });
   if (needsHandleLookup) {
     try {
       const guildMembers = await api.listGuildMembers();

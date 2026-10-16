@@ -2,7 +2,7 @@
   "id": "spacelab-roster",
   "name": "Space Lab roster",
   "lifetime": "always-on",
-  "subscribedEvents": [],
+  "subscribedEvents": ["member.join"],
   "command": ["node", "main.js"],
   "environment": [
     {

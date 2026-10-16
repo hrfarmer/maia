@@ -1,9 +1,11 @@
 import readline from "node:readline";
 import {
   createGraphMailboxClient,
+  parseMemberJoinGatewayPayload,
   resolveGraphBaseUrl,
   runSpacelabGuildCycle,
   runSpacelabGuildForceSync,
+  runSpacelabGuildMemberJoinReconcile,
   startSpacelabMinutePoll,
 } from "./reconcile.mjs";
 
@@ -36,14 +38,18 @@ if (process.env.MAIA_SPACELAB_DISABLE_POLL !== "1") {
   });
 }
 
+const pluginConfig = {
+  pluginUrl,
+  pluginToken,
+  fetchImpl: fetch,
+};
+
 async function runCycleForGuild(guildId, options = {}) {
   try {
     const result = await runSpacelabGuildCycle({
       config: {
-        pluginUrl,
-        pluginToken,
+        ...pluginConfig,
         guildId,
-        fetchImpl: fetch,
       },
       graph,
       forceFullPass: options.forceFullPass === true,
@@ -67,6 +73,33 @@ async function runCycleForGuild(guildId, options = {}) {
   }
 }
 
+async function runMemberJoinForGuild(guildId, payload) {
+  const member = parseMemberJoinGatewayPayload(payload);
+  if (!member) {
+    return;
+  }
+  try {
+    const result = await runSpacelabGuildMemberJoinReconcile(
+      { ...pluginConfig, guildId },
+      member,
+    );
+    process.stdout.write(
+      `${JSON.stringify({ guildId, memberJoin: result })}\n`,
+    );
+  } catch (error) {
+    process.stdout.write(
+      `${JSON.stringify({
+        guildId,
+        memberJoin: {
+          ok: false,
+          error:
+            error instanceof Error ? error.message : "member_join_failed",
+        },
+      })}\n`,
+    );
+  }
+}
+
 const rl = readline.createInterface({ input: process.stdin });
 
 rl.on("line", (line) => {
@@ -78,6 +111,10 @@ rl.on("line", (line) => {
       return;
     }
     if (!message || typeof message.guildId !== "string") {
+      return;
+    }
+    if (message.event === "member.join") {
+      await runMemberJoinForGuild(message.guildId, message.payload);
       return;
     }
     const change = message.change;
@@ -95,10 +132,8 @@ rl.on("line", (line) => {
     if (change === "force_sync_requested") {
       try {
         const result = await runSpacelabGuildForceSync({
-          pluginUrl,
-          pluginToken,
+          ...pluginConfig,
           guildId: message.guildId,
-          fetchImpl: fetch,
         });
         process.stdout.write(
           `${JSON.stringify({ guildId: message.guildId, forceSync: result })}\n`,

@@ -246,4 +246,170 @@ describe("Space Lab roster always-on process", () => {
     await api.close();
     await graph.close();
   });
+
+  it("handles member.join on stdin with a single-member reconcile", async () => {
+    let listMembersCalls = 0;
+    const addRoleCalls: Array<{ userId: string; roleId: string }> = [];
+    const registry = new PluginTokenRegistry();
+    const token = registry.mintAlwaysOnToken("spacelab-roster");
+    const enabledGuilds = new Set(["guild-1"]);
+    const api = createPluginApiServer({
+      port: 0,
+      tokenRegistry: registry,
+      db: {
+        query: {
+          guildPluginSettings: {
+            findMany: async () => [{ guildId: "guild-1", enabled: true }],
+          },
+          spacelabGuildCycleState: { findFirst: async () => null },
+          spacelabGuildRosterState: {
+            findFirst: async () => ({
+              rowsJson: JSON.stringify([
+                {
+                  discordHandle: "User.A",
+                  status: "Active",
+                  adaptRoleValues: ["Alpha"],
+                },
+              ]),
+              adaptValuesJson: JSON.stringify(["Alpha"]),
+              parsedAt: new Date(),
+            }),
+          },
+          spacelabAdaptRoleLinks: {
+            findMany: async () => [
+              { adaptValue: "Alpha", discordRoleId: "role-alpha" },
+            ],
+          },
+          spacelabGuildAdaptSettings: {
+            findFirst: async () => ({
+              generalMemberRoleId: "role-general",
+              lastAppliedLinksJson: "{}",
+              lastAppliedGeneralMemberRoleId: null,
+            }),
+          },
+          spacelabRememberedMembers: { findMany: async () => [] },
+          spacelabReconcileFailures: { findMany: async () => [] },
+        },
+        update: () => ({
+          set: () => ({
+            where: async () => undefined,
+          }),
+        }),
+        delete: () => ({
+          where: async () => undefined,
+        }),
+        insert: () => ({
+          values: () => ({
+            onConflictDoUpdate: async () => undefined,
+          }),
+        }),
+      } as unknown as Db,
+      assertGuildApiAccess: async (provided, guildId) => {
+        const entry = registry.lookup(provided);
+        if (!entry || entry.kind !== "always-on") {
+          return null;
+        }
+        return enabledGuilds.has(guildId)
+          ? { pluginId: entry.pluginId }
+          : null;
+      },
+      loadGuildValues: async () => ({ ROSTER_COLUMN: "Subteam" }),
+      moderationHandlers: {
+        listRolesForGuild: async () => [
+          {
+            id: "role-alpha",
+            name: "Alpha",
+            color: 0,
+            managed: false,
+            position: 1,
+          },
+          {
+            id: "role-general",
+            name: "General",
+            color: 0,
+            managed: false,
+            position: 0,
+          },
+        ],
+        moderationCreateRole: async () => ({
+          ok: true,
+          role: {
+            id: "x",
+            name: "x",
+            color: 0,
+            managed: false,
+            position: 0,
+            hoist: false,
+            mentionable: false,
+          },
+        }),
+        moderationUpdateRole: async () => ({
+          ok: true,
+          role: { id: "x", name: "x", color: 0, managed: false, position: 0 },
+        }),
+        moderationDeleteRole: async () => ({ ok: true }),
+        listGuildMembersForModeration: async () => {
+          listMembersCalls += 1;
+          return [];
+        },
+        searchGuildMembersForModeration: async () => [],
+        getMemberRoleIds: async () => [],
+        moderationSetRoles: async () => {
+          throw new Error("replace-all roles must not be called");
+        },
+        moderationAddRole: async (_guildId, userId, roleId) => {
+          addRoleCalls.push({ userId, roleId });
+          return { ok: true, noop: false };
+        },
+        moderationRemoveRole: async () => ({ ok: true, noop: false }),
+        moderationKick: async () => ({ ok: true }),
+        moderationBan: async () => ({ ok: true }),
+        moderationUnban: async () => ({ ok: true }),
+        moderationTimeout: async () => ({
+          ok: true,
+          until: new Date().toISOString(),
+        }),
+        moderationUntimeout: async () => ({ ok: true, noop: false }),
+        moderationNickname: async () => ({ ok: true }),
+      },
+    });
+    await api.listen();
+
+    const env = buildAlwaysOnPluginProcessEnvironment({
+      pluginToken: token,
+      pluginUrl: api.url(),
+    });
+    env.MAIA_SPACELAB_DISABLE_POLL = "1";
+    const child = spawnSpacelabProcess(env);
+
+    let stdout = "";
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      stdout += chunk;
+    });
+
+    child.stdin.write(
+      `${JSON.stringify({
+        guildId: "guild-1",
+        event: "member.join",
+        payload: {
+          user: { id: "1000000000000000001", username: "user.a" },
+        },
+      })}\n`,
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    await waitForProcessExit(child);
+
+    assert.equal(listMembersCalls, 0);
+    assert.match(stdout, /"memberJoin":\{"ok":true,"reconciled":true\}/);
+    assert.deepEqual(
+      [...addRoleCalls].sort((a, b) => a.roleId.localeCompare(b.roleId)),
+      [
+        { userId: "1000000000000000001", roleId: "role-alpha" },
+        { userId: "1000000000000000001", roleId: "role-general" },
+      ],
+    );
+    await api.close();
+  });
 });

@@ -31,5 +31,7 @@ export interface SpacelabReconcileFailure {
 }
 
 export interface SpacelabReconcilePassMode {
-  kind: "full" | "retry-failures-only" | "force-sync";
+  kind: "full" | "retry-failures-only" | "force-sync" | "member-join";
+  discordUserId?: string;
+  username?: string;
 }

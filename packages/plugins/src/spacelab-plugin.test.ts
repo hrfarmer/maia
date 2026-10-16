@@ -38,7 +38,7 @@ describe("Space Lab roster shipped plugin", () => {
     assert.equal(manifest.id, SPACELAB_ROSTER_PLUGIN_ID);
     assert.equal(manifest.name, "Space Lab roster");
     assert.equal(manifest.lifetime, "always-on");
-    assert.deepEqual(manifest.subscribedEvents, []);
+    assert.deepEqual(manifest.subscribedEvents, ["member.join"]);
     assert.deepEqual(manifest.command, ["node", "main.js"]);
     assert.deepEqual(manifest.environment, [
       { key: "ROSTER_COLUMN", required: true, secret: false },
@@ -52,8 +52,10 @@ describe("Space Lab roster shipped plugin", () => {
       `${pathToFileURL(reconcilePath).href}?t=${Date.now()}`
     );
     assert.equal(typeof mod.runSpacelabGuildReconcile, "function");
+    assert.equal(typeof mod.runSpacelabGuildMemberJoinReconcile, "function");
     assert.equal(typeof mod.runSpacelabGuildCycle, "function");
     assert.equal(typeof mod.startSpacelabMinutePoll, "function");
+    assert.equal(typeof mod.parseMemberJoinGatewayPayload, "function");
   });
 
   it("is discovered without executing the plugin command", async () => {
