@@ -110,6 +110,7 @@ describe("Space Lab roster always-on process", () => {
           },
           spacelabRememberedMembers: { findMany: async () => [] },
           spacelabReconcileFailures: { findMany: async () => [] },
+          spacelabRoleRemovalIgnores: { findMany: async () => [] },
         },
         update: () => ({
           set: () => ({
@@ -289,6 +290,7 @@ describe("Space Lab roster always-on process", () => {
           },
           spacelabRememberedMembers: { findMany: async () => [] },
           spacelabReconcileFailures: { findMany: async () => [] },
+          spacelabRoleRemovalIgnores: { findMany: async () => [] },
         },
         update: () => ({
           set: () => ({
