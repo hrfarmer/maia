@@ -1,6 +1,7 @@
 import { rosterStatusIsActive } from "./parse.js";
 import type {
   SavedRosterRow,
+  SpacelabRoleRemoval,
   SpacelabRememberedMember,
   SpacelabReconcileFailure,
   SpacelabReconcilePassMode,
@@ -14,7 +15,6 @@ export interface DiscordRoleApi {
   listGuildMembers(): Promise<Array<{ id: string; username: string }>>;
   getMemberRoleIds(userId: string): Promise<string[]>;
   addRole(userId: string, roleId: string): Promise<void>;
-  removeRole(userId: string, roleId: string): Promise<void>;
 }
 
 export interface ReconcilePassInput {
@@ -33,6 +33,7 @@ export interface ReconcilePassResult {
   rows: SavedRosterRow[];
   rememberedMembers: SpacelabRememberedMember[];
   failures: SpacelabReconcileFailure[];
+  roleRemovals: SpacelabRoleRemoval[];
   stoppedEarly: boolean;
 }
 
@@ -513,6 +514,7 @@ export async function runReconcilePass(
   let rows = input.rows.map((row) => ({ ...row }));
   let rememberedMembers = [...input.rememberedMembers];
   let failures = [...input.failures];
+  const roleRemovals: SpacelabRoleRemoval[] = [];
   let consecutiveDiscordErrors = 0;
   let stoppedEarly = false;
 
@@ -584,9 +586,11 @@ export async function runReconcilePass(
       for (const roleId of toAdd) {
         await api.addRole(userId, roleId);
       }
-      for (const roleId of toRemove) {
-        await api.removeRole(userId, roleId);
-      }
+      roleRemovals.push({
+        discordUserId: userId,
+        discordHandle: item.discordHandle,
+        roleIds: toRemove,
+      });
 
       consecutiveDiscordErrors = 0;
       updateRowUserId(item.discordHandle, userId);
@@ -594,7 +598,7 @@ export async function runReconcilePass(
         rememberedMembers,
         userId,
         item.discordHandle,
-        [...desired],
+        [...new Set([...desired, ...toRemove])],
       );
       failures = removeFailure(failures, failureKey);
       failures = removeFailure(failures, handleFailureKey);
@@ -608,9 +612,6 @@ export async function runReconcilePass(
         nextFailures = removeFailure(nextFailures, handleFailureKey);
       }
       failures = upsertFailure(nextFailures, failureKey, item.discordHandle);
-      if (userId && rememberedMembers.some((member) => member.discordUserId === userId)) {
-        // keep remembered entry as-is
-      }
     }
   }
 
@@ -618,6 +619,7 @@ export async function runReconcilePass(
     rows,
     rememberedMembers,
     failures,
+    roleRemovals,
     stoppedEarly,
   };
 }

@@ -67,6 +67,7 @@ export async function runSpacelabGuildReconcile(
     links: state.links,
     rememberedMembers: result.rememberedMembers,
     failures: result.failures,
+    roleRemovals: result.roleRemovals,
     forceSyncCompleted:
       mode.kind === "force-sync"
         ? {
@@ -124,6 +125,7 @@ export async function runSpacelabGuildMemberJoinReconcile(
     links: state.links,
     rememberedMembers: result.rememberedMembers,
     failures: result.failures,
+    roleRemovals: result.roleRemovals,
   });
   return { ok: true as const, reconciled: true as const };
 }

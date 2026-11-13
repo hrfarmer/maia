@@ -35,3 +35,9 @@ export interface SpacelabReconcilePassMode {
   discordUserId?: string;
   username?: string;
 }
+
+export interface SpacelabRoleRemoval {
+  discordUserId: string;
+  discordHandle: string;
+  roleIds: string[];
+}

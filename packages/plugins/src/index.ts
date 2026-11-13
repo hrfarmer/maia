@@ -74,6 +74,7 @@ export type {
   SpacelabRememberedMember,
   SpacelabReconcileFailure,
   SpacelabReconcilePassMode,
+  SpacelabRoleRemoval,
 } from "./spacelab-roster/types.js";
 export {
   runReconcilePass,

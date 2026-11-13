@@ -11,3 +11,7 @@ Five canonical labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-f
 ### Domain docs
 
 Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+## UI text
+
+Don't add descriptive, explanatory, or flavor text to the dashboard. Labels, titles, and buttons say what they do; no helper paragraphs or dialog descriptions.

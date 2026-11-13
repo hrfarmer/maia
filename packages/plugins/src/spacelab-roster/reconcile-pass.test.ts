@@ -52,17 +52,23 @@ function fakeApi(
         const current = roles.get(userId) ?? [];
         roles.set(userId, [...current, roleId]);
       }),
-    removeRole:
-      overrides.removeRole ??
-      (async (userId, roleId) => {
-        calls.push({ op: "remove", userId, roleId });
-        const current = roles.get(userId) ?? [];
-        roles.set(
-          userId,
-          current.filter((id) => id !== roleId),
-        );
-      }),
   };
+}
+
+function withRemovals(
+  calls: Array<{ op: string; userId: string; roleId?: string }>,
+  result: { roleRemovals: Array<{ discordUserId: string; roleIds: string[] }> },
+) {
+  return [
+    ...calls,
+    ...result.roleRemovals.flatMap((removal) =>
+      removal.roleIds.map((roleId) => ({
+        op: "remove",
+        userId: removal.discordUserId,
+        roleId,
+      })),
+    ),
+  ];
 }
 
 function links(entries: Record<string, string>) {
@@ -221,7 +227,7 @@ describe("runReconcilePass", () => {
     assert.equal(result.rememberedMembers.length, 1);
   });
 
-  it("removes mapped roles for inactive, absent, or de-linked remembered members", async () => {
+  it("flags mapped roles for removal for inactive, absent, or de-linked remembered members", async () => {
     const calls: Array<{ op: string; userId: string; roleId?: string }> = [];
     const api = fakeApi({
       calls,
@@ -235,7 +241,7 @@ describe("runReconcilePass", () => {
         ["uid-gone", ["role-gamma"]],
       ]),
     });
-    await runReconcilePass(
+    const result = await runReconcilePass(
       input({
         rows: [
           {
@@ -277,7 +283,7 @@ describe("runReconcilePass", () => {
       api,
     );
     assert.deepEqual(
-      [...calls].sort((a, b) => a.userId.localeCompare(b.userId)),
+      withRemovals(calls, result).sort((a, b) => a.userId.localeCompare(b.userId)),
       [
         { op: "remove", userId: "uid-empty", roleId: "role-beta" },
         { op: "remove", userId: "uid-gone", roleId: "role-gamma" },
@@ -286,13 +292,11 @@ describe("runReconcilePass", () => {
     );
   });
 
-  it("removes mapped roles when an active row no longer includes a linked value", async () => {
+  it("flags mapped roles for removal when an active row no longer includes a linked value", async () => {
     const calls: Array<{ op: string; userId: string; roleId?: string }> = [];
-    const api = fakeApi({
-      calls,
-      roles: new Map([["uid-a", ["role-alpha", "role-beta"]]]),
-    });
-    await runReconcilePass(
+    const roles = new Map([["uid-a", ["role-alpha", "role-beta"]]]);
+    const api = fakeApi({ calls, roles });
+    const result = await runReconcilePass(
       input({
         rows: [
           {
@@ -312,7 +316,12 @@ describe("runReconcilePass", () => {
       }),
       api,
     );
-    assert.deepEqual(calls, [{ op: "remove", userId: "uid-a", roleId: "role-beta" }]);
+    assert.deepEqual(withRemovals(calls, result), [{ op: "remove", userId: "uid-a", roleId: "role-beta" }]);
+    assert.deepEqual(roles.get("uid-a"), ["role-alpha", "role-beta"]);
+    assert.deepEqual(result.rememberedMembers[0]?.grantedRoleIds, [
+      "role-alpha",
+      "role-beta",
+    ]);
   });
 
   it("remembers a member even when their mapped roles already match", async () => {
@@ -615,13 +624,13 @@ describe("runReconcilePass", () => {
     assert.equal(calls.length, 0);
   });
 
-  it("removes the general member role when a remembered member no longer qualifies", async () => {
+  it("flags the general member role for removal when a remembered member no longer qualifies", async () => {
     const calls: Array<{ op: string; userId: string; roleId?: string }> = [];
     const api = fakeApi({
       calls,
       roles: new Map([["uid-a", ["role-general", "role-alpha"]]]),
     });
-    await runReconcilePass(
+    const result = await runReconcilePass(
       input({
         generalMemberRoleId: "role-general",
         rows: [
@@ -643,7 +652,7 @@ describe("runReconcilePass", () => {
       api,
     );
     assert.deepEqual(
-      [...calls].sort((a, b) => a.roleId!.localeCompare(b.roleId!)),
+      withRemovals(calls, result).sort((a, b) => a.roleId!.localeCompare(b.roleId!)),
       [
         { op: "remove", userId: "uid-a", roleId: "role-alpha" },
         { op: "remove", userId: "uid-a", roleId: "role-general" },
@@ -651,13 +660,13 @@ describe("runReconcilePass", () => {
     );
   });
 
-  it("uses previous applied links to remove stale roles for legacy remembered members", async () => {
+  it("uses previous applied links to flag stale roles for legacy remembered members", async () => {
     const calls: Array<{ op: string; userId: string; roleId?: string }> = [];
     const api = fakeApi({
       calls,
       roles: new Map([["uid-a", ["role-alpha", "role-manual"]]]),
     });
-    await runReconcilePass(
+    const result = await runReconcilePass(
       input({
         links: links({ Alpha: "role-beta" }),
         previousAppliedLinks: links({ Alpha: "role-alpha" }),
@@ -673,19 +682,19 @@ describe("runReconcilePass", () => {
       }),
       api,
     );
-    assert.deepEqual(calls, [
+    assert.deepEqual(withRemovals(calls, result), [
       { op: "add", userId: "uid-a", roleId: "role-beta" },
       { op: "remove", userId: "uid-a", roleId: "role-alpha" },
     ]);
   });
 
-  it("force sync strips an extra linked role and adds missing roles", async () => {
+  it("force sync flags an extra linked role and adds missing roles", async () => {
     const calls: Array<{ op: string; userId: string; roleId?: string }> = [];
     const api = fakeApi({
       calls,
       roles: new Map([["uid-a", ["role-beta", "role-manual"]]]),
     });
-    await runReconcilePass(
+    const result = await runReconcilePass(
       input({
         mode: { kind: "force-sync" },
         links: links({ Alpha: "role-alpha", Beta: "role-beta" }),
@@ -701,13 +710,13 @@ describe("runReconcilePass", () => {
       }),
       api,
     );
-    assert.deepEqual(calls, [
+    assert.deepEqual(withRemovals(calls, result), [
       { op: "add", userId: "uid-a", roleId: "role-alpha" },
       { op: "remove", userId: "uid-a", roleId: "role-beta" },
     ]);
   });
 
-  it("removes a previously granted role after relink and keeps manual roles", async () => {
+  it("flags a previously granted role after relink and keeps manual roles", async () => {
     const calls: Array<{ op: string; userId: string; roleId?: string }> = [];
     const roles = new Map<string, string[]>([["uid-a", ["role-manual"]]]);
     const api = fakeApi({
@@ -730,7 +739,7 @@ describe("runReconcilePass", () => {
     ]);
 
     calls.length = 0;
-    await runReconcilePass(
+    const result = await runReconcilePass(
       input({
         links: links({ Alpha: "role-beta" }),
         previousAppliedLinks: linksAlphaA,
@@ -746,7 +755,7 @@ describe("runReconcilePass", () => {
       }),
       api,
     );
-    assert.deepEqual(calls, [
+    assert.deepEqual(withRemovals(calls, result), [
       { op: "add", userId: "uid-a", roleId: "role-beta" },
       { op: "remove", userId: "uid-a", roleId: "role-alpha" },
     ]);
