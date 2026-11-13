@@ -13,3 +13,4 @@ export * from "./spacelab-roster.js";
 export * from "./spacelab-reconcile.js";
 export * from "./spacelab-cycle.js";
 export * from "./schema.js";
+export * from "./spacelab-role-removals.js";

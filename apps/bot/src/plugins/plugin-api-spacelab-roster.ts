@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Db } from "@maia/db";
 import {
+  applySpacelabRoleRemovals,
   commitSpacelabLastAppliedAdaptLinksFromCurrent,
   completeSpacelabForceSync,
   getSpacelabReconcileState,
@@ -216,6 +217,7 @@ export async function tryHandlePluginSpacelabRosterRequest(
       rows?: unknown;
       rememberedMembers?: unknown;
       failures?: unknown;
+      roleRemovals?: unknown;
       forceSyncCompleted?: { ok?: unknown; error?: unknown };
     };
     if (!Array.isArray(parsed.rows)) {
@@ -230,6 +232,11 @@ export async function tryHandlePluginSpacelabRosterRequest(
       sendJson(res, 400, { error: "failures must be an array" });
       return true;
     }
+    const roleRemovals = parsed.roleRemovals ?? [];
+    if (!Array.isArray(roleRemovals)) {
+      sendJson(res, 400, { error: "roleRemovals must be an array" });
+      return true;
+    }
 
     await saveSpacelabReconcileResult(db, guildId, {
       rows: parsed.rows as Parameters<
@@ -242,6 +249,11 @@ export async function tryHandlePluginSpacelabRosterRequest(
         typeof saveSpacelabReconcileResult
       >[2]["failures"],
     });
+    await applySpacelabRoleRemovals(
+      db,
+      guildId,
+      roleRemovals as Parameters<typeof applySpacelabRoleRemovals>[2],
+    );
     await commitSpacelabLastAppliedAdaptLinksFromCurrent(db, guildId);
     if (
       parsed.forceSyncCompleted &&

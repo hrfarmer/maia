@@ -67,18 +67,6 @@ export function createMaiaDiscordRoleApi(
         throw new Error(`add role failed: ${response.status}`);
       }
     },
-    async removeRole(userId, roleId) {
-      const response = await fetchImpl(
-        `${base}/members/${userId}/roles/${roleId}`,
-        {
-          method: "DELETE",
-          headers: authHeaders(config.pluginToken),
-        },
-      );
-      if (!response.ok) {
-        throw new Error(`remove role failed: ${response.status}`);
-      }
-    },
   };
 }
 
@@ -101,6 +89,19 @@ export interface SpacelabReconcileStateResponse {
   failures: Array<{ memberKey: string; discordHandle: string; attempts: number }>;
 }
 
+export interface SpacelabReconcileStateSave {
+  rows: SpacelabReconcileStateResponse["rows"];
+  links: Record<string, string>;
+  rememberedMembers: SpacelabReconcileStateResponse["rememberedMembers"];
+  failures: SpacelabReconcileStateResponse["failures"];
+  roleRemovals: Array<{
+    discordUserId: string;
+    discordHandle: string;
+    roleIds: string[];
+  }>;
+  forceSyncCompleted?: { ok: boolean; error?: string | null };
+}
+
 export async function fetchSpacelabReconcileState(
   config: MaiaPluginClientConfig,
 ): Promise<SpacelabReconcileStateResponse | null> {
@@ -120,9 +121,7 @@ export async function fetchSpacelabReconcileState(
 
 export async function saveSpacelabReconcileState(
   config: MaiaPluginClientConfig,
-  body: SpacelabReconcileStateResponse & {
-    forceSyncCompleted?: { ok: boolean; error?: string | null };
-  },
+  body: SpacelabReconcileStateSave,
 ) {
   const fetchImpl = config.fetchImpl ?? fetch;
   const response = await fetchImpl(

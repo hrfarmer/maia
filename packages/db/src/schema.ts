@@ -264,6 +264,35 @@ export const spacelabReconcileFailures = pgTable(
   (table) => [primaryKey({ columns: [table.guildId, table.memberKey] })],
 );
 
+export const spacelabRoleRemovalFlags = pgTable(
+  "spacelab_role_removal_flags",
+  {
+    guildId: varchar("guild_id", { length: 20 })
+      .notNull()
+      .references(() => guilds.id, { onDelete: "cascade" }),
+    discordUserId: text("discord_user_id").notNull(),
+    discordHandle: text("discord_handle").notNull(),
+    roleIdsJson: text("role_ids_json").notNull(),
+    flaggedAt: timestamp("flagged_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.guildId, table.discordUserId] })],
+);
+
+export const spacelabRoleRemovalIgnores = pgTable(
+  "spacelab_role_removal_ignores",
+  {
+    guildId: varchar("guild_id", { length: 20 })
+      .notNull()
+      .references(() => guilds.id, { onDelete: "cascade" }),
+    discordUserId: text("discord_user_id").notNull(),
+    discordHandle: text("discord_handle").notNull(),
+    ignoredUntil: timestamp("ignored_until", { withTimezone: true }),
+  },
+  (table) => [primaryKey({ columns: [table.guildId, table.discordUserId] })],
+);
+
 export const spacelabGuildCycleState = pgTable("spacelab_guild_cycle_state", {
   guildId: varchar("guild_id", { length: 20 })
     .primaryKey()
