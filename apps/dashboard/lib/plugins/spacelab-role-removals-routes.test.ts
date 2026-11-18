@@ -136,7 +136,7 @@ describe("spacelab role removal decision route", () => {
     const { POST } = await import(
       "../../app/api/servers/[guildId]/plugins/spacelab-roster/role-removals/[userId]/route.js"
     );
-    return POST(
+    const response = await POST(
       new Request("http://localhost/api", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -149,6 +149,8 @@ describe("spacelab role removal decision route", () => {
         }),
       },
     );
+    assert.ok(response);
+    return response;
   }
 
   it("confirm removes the flagged roles from the member in Discord", async () => {
